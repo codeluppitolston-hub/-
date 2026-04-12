@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>差旅壹号商家系统-喜鹊</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:13px}
+/* ── Top header ── */
+.hd{height:50px;background:#fff;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;padding:0 20px;position:fixed;top:0;left:0;right:0;z-index:200;gap:0}
+.hd-logo{display:flex;align-items:center;gap:6px;width:200px;flex-shrink:0}
+.hd-logo .lg{font-size:15px;font-weight:700;color:#1677ff;letter-spacing:1px}
+.hd-logo .sq{width:22px;height:22px;background:#1677ff;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.hd-hotel{flex:1;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.hd-hotel .badge{font-size:11px;padding:1px 6px;border-radius:3px;background:#fff7e6;color:#fa8c16;border:1px solid #ffd591}
+.hd-right{display:flex;align-items:center;gap:16px;font-size:12px;color:#666}
+.hd-right .ico{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;color:#666}
+.hd-right .ico:hover{color:#1677ff}
+.hd-right .ico svg{width:18px;height:18px}
+.hd-right .avatar{width:28px;height:28px;background:#1677ff;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}
+/* ── Layout ── */
+.layout{display:flex;min-height:100vh;padding-top:50px}
+/* ── Sidebar ── */
+.sb{width:200px;flex-shrink:0;background:#fff;border-right:1px solid #e5e5e5;position:fixed;top:50px;left:0;bottom:0;overflow-y:auto}
+.sb-sec{font-size:11px;color:#bbb;padding:14px 14px 4px;letter-spacing:.5px;font-weight:500}
+.sb-item{padding:9px 14px 9px 18px;cursor:pointer;font-size:13px;color:#555;display:flex;align-items:center;gap:7px;border-left:3px solid transparent;transition:all .15s;position:relative}
+.sb-item:hover{background:#f5f5f5;color:#333}
+.sb-item.active{color:#1677ff;background:#e6f4ff;border-left-color:#1677ff;font-weight:500}
+.sb-item .arrow{margin-left:auto;transition:transform .2s;font-size:10px;color:#bbb}
+.sb-item.open .arrow{transform:rotate(90deg)}
+.sb-sub{overflow:hidden;background:#fafafa}
+.sb-sub .sb-item{padding-left:30px;font-size:12px;border-left:none;border-right:3px solid transparent}
+.sb-sub .sb-item.active{border-left:none;border-right-color:#1677ff}
+.sb-sub .sb-item .dot{width:5px;height:5px;border-radius:50%;background:#d9d9d9;flex-shrink:0;transition:background .15s}
+.sb-sub .sb-item.active .dot,.sb-sub .sb-item:hover .dot{background:#1677ff}
+.sb-divider{height:1px;background:#f0f0f0;margin:6px 0}
+/* ── Main ── */
+.mn{flex:1;margin-left:200px;padding:24px 28px;min-height:calc(100vh - 50px)}
+/* ── Home dashboard ── */
+.dash-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px}
+.stat-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px 18px}
+.stat-card .sc-label{font-size:11px;color:#999;margin-bottom:2px}
+.stat-card .sc-val{font-size:22px;font-weight:700;color:#1a1a1a}
+.stat-card .sc-sub{font-size:11px;color:#999;margin-top:2px}
+.stat-card.warn .sc-val{color:#cf1322}
+.stat-card.ok .sc-val{color:#389e0d}
+.quick-btn{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.qb-item{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:14px 12px;text-align:center;cursor:pointer;transition:all .15s}
+.qb-item:hover{border-color:#1677ff;background:#f0f7ff}
+.qb-item .qb-ic{width:36px;height:36px;border-radius:8px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.qb-item .qb-name{font-size:12px;color:#555}
+/* ── Module sub-nav tabs ── */
+.mod-nav{display:flex;gap:0;border-bottom:2px solid #e5e5e5;margin-bottom:20px}
+.mod-tab{padding:8px 16px;cursor:pointer;font-size:13px;color:#666;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.mod-tab:hover{color:#1677ff}
+.mod-tab.active{color:#1677ff;border-bottom-color:#1677ff;font-weight:500}
+/* ── Shared components (from demos) ── */
+.pt{font-size:18px;font-weight:600;margin-bottom:4px}
+.ps{font-size:12px;color:#999;margin-bottom:18px}
+.cd{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px 18px;margin-bottom:12px}
+.bd{font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;display:inline-block}
+.bd-s{background:#f6ffed;color:#389e0d}.bd-d{background:#fff2f0;color:#cf1322}.bd-w{background:#fffbe6;color:#d48806}.bd-i{background:#e6f4ff;color:#1677ff}.bd-g{background:#f5f5f5;color:#999}
+.fl{font-size:11px;color:#999}.fv{font-size:13px}.fv.hl{color:#389e0d;font-weight:500}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:4px 14px}.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.sc{background:#fafafa;border-radius:8px;padding:12px 14px}.sc .sl{font-size:11px;color:#999}.sc .sv{font-size:20px;font-weight:600;margin-top:2px}
+.qb{background:#fafafa;border-radius:10px;padding:14px 18px}.qr{display:flex;gap:18px;margin-bottom:8px}.ql{font-size:11px;color:#999}.qv{font-size:17px;font-weight:600}
+.bar{height:6px;background:#e5e5e5;border-radius:3px;overflow:hidden}.bar-f{height:100%;border-radius:3px;background:#389e0d;transition:width .5s}
+.bt{font-size:11px;color:#999;text-align:right;margin-top:2px}
+.ri{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.bp{font-size:13px;font-weight:500;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;background:#1677ff;color:#fff}.bp:hover{background:#4096ff}
+.bs{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #e5e5e5;cursor:pointer;background:#fff;color:#666}
+.bi{font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;border:none;cursor:pointer;background:#e6f4ff;color:#1677ff}
+.ib{margin-top:16px;padding:12px 16px;border-radius:8px;background:#e6f4ff;font-size:12px;color:#1677ff;line-height:1.8}
+.wb{margin-top:12px;padding:12px 16px;border-radius:8px;background:#fff2f0;font-size:12px;color:#cf1322;line-height:1.8}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:300}
+.ml{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:480px;max-height:90vh;overflow-y:auto}
+.ml h3{font-size:17px;font-weight:600;margin-bottom:4px}.ml .ms{font-size:12px;color:#999;margin-bottom:14px}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mf label{font-size:11px;color:#999;display:block;margin-bottom:2px}.mf input{width:100%;padding:7px 10px;border:1px solid #d9d9d9;border-radius:6px;font-size:13px;outline:none}
+.mf input:focus{border-color:#1677ff}.mf input[readonly]{background:#fafafa;color:#999}
+.ma{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.dz{border:1.5px dashed #d9d9d9;border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;margin-bottom:16px;transition:all .15s}
+.dz:hover{border-color:#1677ff;background:#f0f7ff}
+.em{font-size:12px;color:#cf1322;background:#fff2f0;padding:7px 10px;margin-bottom:8px;border-left:3px solid #ffa39e}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;padding:8px 10px;background:#fafafa;border-bottom:1px solid #e5e5e5;font-weight:500;font-size:12px;color:#666}
+.tbl td{padding:8px 10px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.tbl tr:hover td{background:#fafafa}
+.step-box{background:#f0f7ff;border:1px solid #91caff;border-radius:10px;padding:14px 16px;margin-top:10px}
+.step-title{font-size:13px;font-weight:500;color:#1677ff;margin-bottom:8px}
+.bill-opt{border:1px solid #e5e5e5;border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:all .15s}
+.bill-opt:hover{border-color:#1677ff;background:#f0f7ff}.bill-opt.sel{border-color:#1677ff;background:#e6f4ff}
+.bill-opt .bo-t{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.bill-opt .bo-n{font-size:13px;font-weight:500}.bill-opt .bo-d{display:flex;gap:14px;font-size:11px;color:#999}
+.cf-bar{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #91caff}
+.eh{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer}.eh:hover{background:#fafafa}
+.eb{border-top:1px solid #e5e5e5;padding:10px 14px}
+.ok-box{margin-top:8px;padding:8px 10px;background:#f6ffed;border-radius:6px;font-size:12px;color:#389e0d;font-weight:500}
+.ph{padding:60px 20px;text-align:center;color:#bbb;font-size:14px}
+</style>
+</head>
+<body>
+<!-- ═══ TOP HEADER ═══ -->
+<div class="hd">
+  <div class="hd-logo"><div class="sq">壹</div><div class="lg">差旅壹号</div></div>
+  <div class="hd-hotel">
+    <span>北京蜘蛛森林度假别墅</span>
+    <span class="badge">高德·精品</span>
+  </div>
+  <div class="hd-right">
+    <div class="ico" onclick="goMod('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      <span>任务</span>
+    </div>
+    <div class="ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+      <span>公众号</span>
+    </div>
+    <div class="ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      <span>客服</span>
+    </div>
+    <div class="avatar">元</div>
+  </div>
+</div>
+
+<!-- ═══ LAYOUT ═══ -->
+<div class="layout">
+<!-- ═══ SIDEBAR ═══ -->
+<div class="sb" id="SB"></div>
+<!-- ═══ MAIN CONTENT ═══ -->
+<div class="mn" id="MAIN"></div>
+</div>
+<!-- ═══ MODAL ═══ -->
+<div id="MD" class="ov" style="display:none"></div>
+
+<script>
+// ────────────────────────────────────────────────
+// SHARED UTILITIES
+// ────────────────────────────────────────────────
+var $=function(i){return document.getElementById(i)};
+var fm=function(n){return'¥'+Math.round(n).toLocaleString()};
+function closeM(){$('MD').style.display='none'}
+
+// ────────────────────────────────────────────────
+// APP ROUTER
+// ────────────────────────────────────────────────
+var APP={mod:'home',fin:true}; // fin: 财务结算 expanded
+
+var NAV=[
+  {id:'home',label:'首页',icon:'🏠'},
+  {id:'orders',label:'订单管理',icon:'📋'},
+  {id:'rooms',label:'房间/房态',icon:'🛏'},
+  {id:'guests',label:'客户及渠道',icon:'👥'},
+  {id:'agreements',label:'协议管理',icon:'📄'},
+  {id:'finance',label:'财务结算',icon:'💰',children:[
+    {id:'autocollect',label:'自助收款'},
+    {id:'invoice-upload-old',label:'发票上线'},
+    {id:'invoice-mgmt',label:'开票管理'},
+    {id:'notify',label:'收款通知'},
+    {id:'invoice-info',label:'发票信息'},
+    {id:'settle-rule',label:'结算规则'},
+    {id:'account',label:'收款账号'},
+    {id:'register',label:'要求登记'},
+    {id:'DIVIDER'},
+    {id:'m1',label:'先票后款（发票池）',isNew:true},
+    {id:'m2',label:'先款后票（授信追票）',isNew:true},
+    {id:'m3',label:'追款管理',isNew:true},
+  ]},
+  {id:'sysadmin',label:'系统管理',icon:'⚙️'},
+];
+
+function goMod(m){APP.mod=m;renderSB();renderMain()}
+function renderSB(){
+  var finMods=['m1','m2','m3','autocollect','invoice-upload-old','invoice-mgmt','notify','invoice-info','settle-rule','account','register'];
+  if(finMods.indexOf(APP.mod)>=0)APP.fin=true;
+  $('SB').innerHTML=NAV.map(function(n){
+    if(n.children){
+      var isOpen=APP.fin;
+      var html='<div class="sb-item'+(isOpen?' open':'')+'" onclick="APP.fin=!APP.fin;renderSB()" style="font-weight:500">'+n.icon+' '+n.label+'<span class="arrow">›</span></div>';
+      if(isOpen){
+        html+='<div class="sb-sub">'+n.children.map(function(c){
+          if(c.id==='DIVIDER')return '<div style="margin:4px 0;border-top:1px dashed #e5e5e5"></div>';
+          return '<div class="sb-item'+(APP.mod===c.id?' active':'')+'" onclick="goMod(\''+c.id+'\')" style="display:flex;align-items:center;gap:4px"><span class="dot"></span><span>'+c.label+'</span>'+(c.isNew?'<span style="margin-left:auto;font-size:9px;background:#ff4d4f;color:#fff;padding:1px 4px;border-radius:3px;font-weight:700;flex-shrink:0">新</span>':'')+'</div>';
+        }).join('')+'</div>';
+      }
+      return html;
+    }
+    return '<div class="sb-item'+(APP.mod===n.id?' active':'')+'" onclick="goMod(\''+n.id+'\')" style="font-weight:500">'+n.icon+' '+n.label+'</div>';
+  }).join('');
+}
+
+function renderMain(){
+  var m=$('MAIN');
+  if(APP.mod==='home'){renderHome(m)}
+  else if(APP.mod==='m1'){m1_renderShell(m)}
+  else if(APP.mod==='m2'){m2_renderShell(m)}
+  else if(APP.mod==='m3'){m3_renderShell(m)}
+  else{m.innerHTML='<div class="ph">该模块内容建设中，请选择左侧财务结算模块体验Demo</div>'}
+}
+
+// ────────────────────────────────────────────────
+// HOME DASHBOARD
+// ────────────────────────────────────────────────
+function renderHome(m){
+  m.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><div style="font-size:16px;font-weight:600">工作台</div><div style="font-size:12px;color:#999">2026-04-12 周日</div></div>'+
+  '<div class="dash-stats">'+
+  '<div class="stat-card warn"><div class="sc-label">任务待处理</div><div class="sc-val">0</div><div class="sc-sub">今日</div></div>'+
+  '<div class="stat-card"><div class="sc-label">订单数</div><div class="sc-val" style="font-size:18px"><span style="font-size:12px;color:#999;font-weight:400">今日</span> 0 <span style="font-size:12px;color:#999;font-weight:400;margin-left:8px">本月</span> 0</div></div>'+
+  '<div class="stat-card"><div class="sc-label">销售额</div><div class="sc-val" style="font-size:18px"><span style="font-size:12px;color:#999;font-weight:400">今日</span> 0.00 <span style="font-size:12px;color:#999;font-weight:400;margin-left:8px">本月</span> 0.00</div></div>'+
+  '</div>'+
+  '<div style="font-size:14px;font-weight:500;margin-bottom:12px">快捷入口</div>'+
+  '<div class="quick-btn">'+
+  [['💰','先票后款','m1'],['🎫','先款后票','m2'],['📊','追款管理','m3'],['📝','发票上线','invoice-upload-old'],['⚙️','结算规则','settle-rule'],['📞','收款通知','notify'],['🏦','收款账号','account'],['📋','要求登记','register']].map(function(q){
+    return '<div class="qb-item" onclick="goMod(\''+q[2]+'\')"><div class="qb-ic">'+q[0]+'</div><div class="qb-name">'+q[1]+'</div></div>';
+  }).join('')+
+  '</div>'+
+  '<div style="margin-top:20px;padding:14px 16px;background:#fff7e6;border-radius:8px;border:1px solid #ffd591;font-size:12px;color:#d48806">'+
+  '<strong>财务结算提示</strong>：先款后票模式下，您有 <strong>2 个账期</strong> 待追票核销；先票后款发票额度剩余 <strong>41%</strong>，请及时补充发票。</div>';
+}
+
+// ════════════════════════════════════════════════
+// MODULE 1：先票后款（发票池）
+// ════════════════════════════════════════════════
+var VF1=["购方税号与平台不匹配（发票购方：91999999XX，平台：91510100MA6EXAMPLE）","销方税号不在供应商档案中（销方：91440300XX），无法归属商家","发票金额格式非法：金额字段包含非数字字符","发票已作废：税局查验返回「该发票已被红冲作废」"];
+var OF1=["OCR识别失败：发票图片模糊，无法提取关键字段","OCR识别失败：文件格式损坏，无法解析内容"];
+var S1={pg:'pool',pool:[
+  {id:'FP-001',code:'03200000',num:'12345678',amt:15000,tax:900,total:15900,date:'2026-04-01',src:'乐企拉取',st:'已入池',tm:'2026-04-02 09:00'},
+  {id:'FP-002',code:'03200000',num:'22334455',amt:22000,tax:1320,total:23320,date:'2026-04-03',src:'商家上传',st:'已入池',tm:'2026-04-03 14:30'},
+  {id:'FP-003',code:'03200000',num:'99887766',amt:8500,tax:510,total:9010,date:'2026-04-05',src:'乐企拉取',st:'已入池',tm:'2026-04-06 09:00'}
+],qt:{total:150000,used:87500},
+rule:{mode:'先票后款',refund:'退款',settle:'离店后结算',threshold:50000,max_refund:30,max_invoice:60,level_t:'T3',level_l:'L2'},
+log:[
+  {time:'2026-04-06 09:00',desc:'发票入池 FP-003 额度累加',delta:9010,type:'+'},
+  {time:'2026-04-05 14:00',desc:'订单付款预占额度 PO-0405',order:'PO-0405',guest:'王磊',checkin:'2026-04-05',checkout:'2026-04-07',delta:18000,type:'-'},
+  {time:'2026-04-03 14:30',desc:'发票入池 FP-002 额度累加',delta:23320,type:'+'},
+  {time:'2026-04-02 09:00',desc:'发票入池 FP-001 额度累加',delta:15900,type:'+'},
+  {time:'2026-04-01 10:00',desc:'退票额度恢复 PO-0325',order:'PO-0325',guest:'李芳',checkin:'2026-03-28',checkout:'2026-03-31',delta:12000,type:'+'},
+  {time:'2026-04-01 00:00',desc:'系统初始额度',delta:150000,type:'='}
+],ur:[]};
+var M1_MENUS=[{id:'pool',label:'发票池'},{id:'upload',label:'发票上传'},{id:'quota',label:'发票额度'},{id:'usage',label:'额度使用记录'},{id:'rule',label:'结算规则'}];
+function m1_bdg(s){var m={'已入池':'bd-s','入池成功':'bd-s','重复拒绝':'bd-d','查验失败':'bd-d','OCR失败':'bd-w','识别中...':'bd-g','手工录入':'bd-i'};return '<span class="bd '+(m[s]||'bd-g')+'">'+s+'</span>'}
+function m1_avail(){return S1.qt.total-S1.qt.used}
+function m1_qhtml(){var a=m1_avail(),p=Math.round(a/S1.qt.total*100);return '<div class="qb"><div style="font-size:12px;color:#999;margin-bottom:6px">发票额度池（先票后款）</div><div class="qr"><div><div class="ql">总额度</div><div class="qv">'+fm(S1.qt.total)+'</div></div><div><div class="ql">已占用</div><div class="qv" style="color:#d48806">'+fm(S1.qt.used)+'</div></div><div><div class="ql">可用</div><div class="qv" style="color:#389e0d">'+fm(a)+'</div></div></div><div class="bar"><div class="bar-f" style="width:'+p+'%"></div></div><div class="bt">可用 '+p+'%</div></div>'}
+function m1_renderShell(m){
+  var tabs=M1_MENUS.map(function(t){return '<div class="mod-tab'+(S1.pg===t.id?' active':'')+'" onclick="m1_go(\''+t.id+'\')">'+t.label+'</div>'}).join('');
+  m.innerHTML='<div style="margin-bottom:4px"><span style="font-size:11px;color:#999">财务结算</span> <span style="color:#d9d9d9">›</span> <span style="font-size:11px;color:#1677ff">先票后款（发票池）</span></div><div class="mod-nav">'+tabs+'</div><div id="M1C"></div>';
+  m1_renderPage();
+}
+function m1_go(p){S1.pg=p;m1_renderShell($('MAIN'))}
+function m1_renderPage(){var c=$('M1C');if(!c)return;
+  if(S1.pg==='pool'){c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><div class="pt">发票池</div><div class="ps">商家进项发票池，入池即锁定只读</div></div><button class="bp" onclick="m1_addInv()">+ 新增发票</button></div>'+S1.pool.map(function(x){return '<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:14px;font-weight:500">'+x.id+'</span><div><span class="bd bd-g" style="margin-right:4px">'+x.src+'</span>'+m1_bdg(x.st)+'</div></div><div class="g3"><div><div class="fl">发票代码</div><div class="fv">'+x.code+'</div></div><div><div class="fl">发票号码</div><div class="fv">'+x.num+'</div></div><div><div class="fl">开票日期</div><div class="fv">'+x.date+'</div></div><div><div class="fl">金额</div><div class="fv">'+fm(x.amt)+'</div></div><div><div class="fl">税额</div><div class="fv">'+fm(x.tax)+'</div></div><div><div class="fl">价税合计</div><div class="fv hl">'+fm(x.total)+'</div></div></div><div style="font-size:11px;color:#bbb;margin-top:8px">入池时间：'+x.tm+'</div></div>'}).join('')}
+  else if(S1.pg==='upload'){c.innerHTML='<div class="pt">发票上传</div><div class="ps">上传发票自动OCR识别+查验+去重，成功后入池并累加额度</div><div class="dz" id="DZ1"><div style="font-size:14px;font-weight:500;margin-bottom:4px">拖拽发票文件到此处，或点击选择文件</div><div style="font-size:12px;color:#999">支持 PDF / OFD / JPG / PNG，单次最多 50 张</div><div style="display:inline-block;margin-top:10px;padding:6px 16px;border-radius:6px;background:#e6f4ff;color:#1677ff;font-size:13px;font-weight:500">选择文件上传</div><input type="file" id="FI1" multiple accept=".pdf,.ofd,.jpg,.jpeg,.png" style="display:none"></div><div id="UL1"></div>';
+    setTimeout(function(){var dz=$('DZ1'),fi=$('FI1');if(dz)dz.onclick=function(){fi.click()};if(fi)fi.onchange=function(e){m1_procFiles(e.target.files);fi.value=''}},30)}
+  else if(S1.pg==='quota'){var a=m1_avail(),p=Math.round(a/S1.qt.total*100),warn=p<=20;c.innerHTML='<div class="pt">发票额度</div><div class="ps">先票后款：有票才能付款，额度不足阻断付款</div>'+m1_qhtml()+'<div class="g2" style="margin-top:14px"><div class="sc"><div class="sl">发票模式</div><div style="font-size:15px;font-weight:600;margin-top:3px">先票后款</div><div style="font-size:11px;color:#999;margin-top:2px">有票才付款</div></div><div class="sc"><div class="sl">预警阈值</div><div style="font-size:15px;font-weight:600;margin-top:3px;color:#d48806">'+fm(Math.round(S1.qt.total*0.2))+'</div><div style="font-size:11px;color:#999;margin-top:2px">低于20%触发预警</div></div><div class="sc"><div class="sl">本月入池</div><div style="font-size:15px;font-weight:600;margin-top:3px">'+S1.pool.length+' 张</div></div><div class="sc"><div class="sl">预警状态</div><div style="font-size:15px;font-weight:600;margin-top:3px;color:'+(warn?'#cf1322':'#389e0d')+'">'+(warn?'额度不足':'正常')+'</div></div></div>'}
+  else if(S1.pg==='usage'){c.innerHTML='<div class="pt">额度使用记录</div><div class="ps">发票额度池变动明细</div>'+S1.log.map(function(l){return '<div class="ri"><div><div style="font-size:13px;font-weight:500">'+l.desc+'</div><div style="font-size:11px;color:#999;display:flex;flex-wrap:wrap;gap:8px;margin-top:2px"><span>'+l.time+'</span>'+(l.guest?'<span>旅客：<strong style="color:#333">'+l.guest+'</strong></span>':'')+(l.order?'<span>订单：<strong style="color:#333">'+l.order+'</strong></span>':'')+(l.checkin?'<span>入住 <strong style="color:#333">'+l.checkin+'</strong></span>':'')+(l.checkout?'<span>离店 <strong style="color:#333">'+l.checkout+'</strong></span>':'')+'</div></div><div style="font-size:15px;font-weight:600;color:'+(l.type==='+'?'#389e0d':l.type==='-'?'#cf1322':'#999')+'">'+(l.type==='='?'':l.type)+fm(l.delta)+'</div></div>'}).join('')}
+  else if(S1.pg==='rule'){var r=S1.rule;c.innerHTML='<div class="pt">结算规则</div><div class="ps">商家结算配置（由信用等级驱动）</div><div class="cd"><div class="g2">'+[['发票模式',r.mode],['退订结算方式',r.refund],['供应商结算方式',r.settle],['欠款阈值',fm(r.threshold)],['最晚退款天数',r.max_refund+'天'],['最晚开票天数',r.max_invoice+'天'],['体量等级',r.level_t],['信用等级',r.level_l]].map(function(p){return '<div style="margin-bottom:10px"><div class="fl">'+p[0]+'</div><div style="font-size:14px;font-weight:500;margin-top:2px">'+p[1]+'</div></div>'}).join('')+'</div></div><div class="ib">· 付款前须有足够发票额度，额度不足阻断付款<br>· 发票入池后额度自动累加，退票时已占用额度自动恢复<br>· 先票后款无追票清单，异常管理入口是发票额度预警</div>'}
+}
+function m1_gi(fn){var c='0'+String(Math.floor(Math.random()*9e6+1e6));var n=String(Math.floor(Math.random()*9e7+1e7));var a=Math.round(Math.random()*30000+3000);var tx=Math.round(a*0.06);var r=Math.random();var s,re;
+  if(r<0.10){s='重复拒绝';re='该发票已存在（发票代码+发票号：03200000-12345678）'}
+  else if(r<0.30){s='查验失败';re=VF1[Math.floor(Math.random()*VF1.length)]}
+  else if(r<0.40){s='OCR失败';re=OF1[Math.floor(Math.random()*OF1.length)]}
+  else{s='识别中...';re=null}
+  return{id:'FP-'+String(S1.pool.length+Math.floor(Math.random()*100)).padStart(3,'0'),f:fn,code:c,num:n,amt:a,tax:tx,total:a+tx,date:'2026-04-08',src:'商家上传',st:s,reason:re,tm:new Date().toLocaleString('zh-CN')}}
+function m1_procFiles(files){if(files.length>50){alert('单次最多50张');return}S1.ur=[];for(var i=0;i<files.length;i++)S1.ur.push(m1_gi(files[i].name));m1_ru();
+  S1.ur.forEach(function(inv,j){if(inv.st==='识别中...'){setTimeout(function(){inv.st='入池成功';inv.reason=null;S1.pool.unshift({id:inv.id,code:inv.code,num:inv.num,amt:inv.amt,tax:inv.tax,total:inv.total,date:inv.date,src:'商家上传',st:'已入池',tm:inv.tm});S1.qt.total+=inv.total;S1.log.unshift({time:inv.tm,desc:'发票入池 '+inv.id+' 额度累加',delta:inv.total,type:'+'});m1_ru()},1200+j*500)}})}
+function m1_ru(){var ul=$('UL1');if(!ul||!S1.ur.length)return;var ok=S1.ur.filter(function(i){return i.st==='入池成功'||i.st==='手工录入'});
+  ul.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:14px">'+[['总计',S1.ur.length,'#1677ff'],['成功',ok.length,'#389e0d'],['重复',S1.ur.filter(function(i){return i.st==='重复拒绝'}).length,'#cf1322'],['查验失败',S1.ur.filter(function(i){return i.st==='查验失败'}).length,'#cf1322'],['OCR失败',S1.ur.filter(function(i){return i.st==='OCR失败'}).length,'#d48806']].map(function(s){return '<div class="sc"><div class="sl">'+s[0]+'</div><div class="sv" style="color:'+s[2]+'">'+s[1]+'</div></div>'}).join('')+'</div>'+
+  S1.ur.map(function(x,i){var isErr=x.st==='重复拒绝'||x.st==='查验失败'||x.st==='OCR失败';var isOk=x.st==='入池成功'||x.st==='手工录入';var h='<div class="cd" style="border-color:'+(isErr?'#ffa39e':isOk?'#b7eb8f':'#e5e5e5')+'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:500">'+x.f+'</span>'+m1_bdg(x.st)+'</div>';
+    if(x.st!=='OCR失败')h+='<div class="g3"><div><div class="fl">发票代码</div><div class="fv">'+x.code+'</div></div><div><div class="fl">发票号码</div><div class="fv">'+x.num+'</div></div><div><div class="fl">金额</div><div class="fv">'+fm(x.amt)+'</div></div><div><div class="fl">税额</div><div class="fv">'+fm(x.tax)+'</div></div><div><div class="fl">价税合计</div><div class="fv hl">'+fm(x.total)+'</div></div></div>';
+    if(x.reason)h+='<div class="em">'+x.reason+'</div>';
+    if(x.st==='查验失败'||x.st==='OCR失败')h+='<button class="bi" onclick="m1_om('+i+')">手工录入发票信息</button>';
+    h+='<div style="font-size:11px;color:#bbb;margin-top:6px">'+x.tm+'</div></div>';return h}).join('')}
+function m1_om(i){var x=S1.ur[i];var mo=$('MD');mo.style.display='flex';
+  mo.innerHTML='<div class="ml"><h3>手工录入发票信息</h3><p class="ms">'+(x.reason?'原因：'+x.reason:'请手动填写发票信息')+'</p><div class="mg"><div class="mf"><label>发票代码 *</label><input id="m1c" placeholder="03200000"></div><div class="mf"><label>发票号码 *</label><input id="m1n" placeholder="12345678"></div><div class="mf"><label>开票日期 *</label><input id="m1d" placeholder="2026-04-08"></div><div class="mf"><label>金额（不含税）*</label><input id="m1a" type="number" placeholder="10000"></div><div class="mf"><label>税额（自动）</label><input id="m1t" readonly></div><div class="mf"><label>价税合计（自动）</label><input id="m1s" readonly></div></div><div class="ma"><button class="bs" onclick="closeM()">取消</button><button class="bp" onclick="m1_sm('+i+')">确认入池</button></div></div>';
+  mo.onclick=function(e){if(e.target===mo)closeM()};
+  setTimeout(function(){var ai=$('m1a');if(ai)ai.addEventListener('input',function(){var v=parseFloat(ai.value)||0;$('m1t').value=Math.round(v*0.06);$('m1s').value=Math.round(v*1.06)})},50)}
+function m1_sm(i){var x=S1.ur[i];var a=parseFloat($('m1a').value)||0;x.code=$('m1c').value||x.code;x.num=$('m1n').value||x.num;x.amt=a;x.tax=Math.round(a*0.06);x.total=Math.round(a*1.06);x.st='手工录入';x.reason=null;S1.pool.unshift({id:x.id,code:x.code,num:x.num,amt:x.amt,tax:x.tax,total:x.total,date:$('m1d').value||'2026-04-08',src:'手工录入',st:'已入池',tm:x.tm});S1.qt.total+=x.total;S1.log.unshift({time:x.tm,desc:'发票入池 '+x.id+' 额度累加',delta:x.total,type:'+'});closeM();m1_ru()}
+function m1_addInv(){S1.ur=[-1];S1.ur[-1]={id:'FP-NEW',f:'手工新增',code:'',num:'',amt:0,tax:0,total:0,st:'OCR失败',reason:null,tm:new Date().toLocaleString('zh-CN')};m1_om(-1)}
+
+// ════════════════════════════════════════════════
+// MODULE 2：先款后票（授信追票）
+// ════════════════════════════════════════════════
+var VF2=["购方税号与平台不匹配","销方税号不在供应商档案中","发票金额格式非法","发票已作废"];
+var OF2=["OCR识别失败：发票图片模糊","OCR识别失败：文件格式损坏"];
+var S2={pg:'credit',cr:{total:200000,used:126000},
+pool:[{id:'FP-001',code:'03200000',num:'55667788',amt:12000,tax:720,total:12720,date:'2026-04-05',src:'商家上传',st:'已入池',tm:'2026-04-05 14:00'},{id:'FP-002',code:'03200000',num:'11223344',amt:18000,tax:1080,total:19080,date:'2026-04-06',src:'乐企拉取',st:'已入池',tm:'2026-04-07 09:00'}],
+bills:[
+  {id:'BILL-03',period:'2026年3月账期',total:85000,matched:52000,due:'2026-04-30',items:[
+    {order:'PO-0328-001',guest:'张明',corp:'差旅壹号',date:'03-28',checkin:'2026-03-28',checkout:'2026-03-30',amt:12000,st:'已核销'},
+    {order:'PO-0329-002',guest:'李雪',corp:'差旅壹号',date:'03-29',checkin:'2026-03-29',checkout:'2026-04-01',amt:18000,st:'已核销'},
+    {order:'PO-0330-003',guest:'王磊',corp:'差旅壹号',date:'03-30',checkin:'2026-03-30',checkout:'2026-04-01',amt:22000,st:'已核销'},
+    {order:'PO-0401-004',guest:'赵静',corp:'差旅壹号',date:'04-01',checkin:'2026-04-01',checkout:'2026-04-03',amt:15000,st:'待匹配'},
+    {order:'PO-0402-005',guest:'陈宇',corp:'差旅壹号',date:'04-02',checkin:'2026-04-02',checkout:'2026-04-04',amt:18000,st:'待匹配'}
+  ]},
+  {id:'BILL-04',period:'2026年4月账期',total:41000,matched:0,due:'2026-05-15',items:[
+    {order:'PO-0405-006',guest:'刘洋',corp:'差旅壹号',date:'04-05',checkin:'2026-04-05',checkout:'2026-04-07',amt:21000,st:'待匹配'},
+    {order:'PO-0406-007',guest:'孙倩',corp:'差旅壹号',date:'04-06',checkin:'2026-04-06',checkout:'2026-04-08',amt:20000,st:'待匹配'}
+  ]}
+],
+rule:{mode:'先款后票',refund:'退款',settle:'离店后结算',threshold:50000,credit_days:90,max_refund:30,max_invoice:60,level_t:'T3',level_l:'L2'},
+log:[
+  {time:'2026-04-07 09:00',desc:'发票入池 FP-002',delta:19080,type:'+'},
+  {time:'2026-04-05 14:00',desc:'发票入池 FP-001',delta:12720,type:'+'},
+  {time:'2026-04-01 16:00',desc:'订单预占 PO-0406-007',order:'PO-0406-007',guest:'孙倩',checkin:'2026-04-06',checkout:'2026-04-08',delta:20000,type:'-'},
+  {time:'2026-04-01 15:30',desc:'订单预占 PO-0405-006',order:'PO-0405-006',guest:'刘洋',checkin:'2026-04-05',checkout:'2026-04-07',delta:21000,type:'-'},
+  {time:'2026-04-01 10:00',desc:'核销释放 PO-0330-003',order:'PO-0330-003',guest:'王磊',checkin:'2026-03-30',checkout:'2026-04-01',delta:22000,type:'+'},
+  {time:'2026-03-01 00:00',desc:'系统初始授信额度',delta:200000,type:'='}
+],exp:{},ur:[]};
+var M2_MENUS=[{id:'credit',label:'授信额度'},{id:'chase',label:'追票核销'},{id:'upload',label:'发票上传'},{id:'pool',label:'发票池'},{id:'usage',label:'额度占用记录'},{id:'rule',label:'结算规则'}];
+function m2_bdg(s){var m={'已入池':'bd-s','已核销':'bd-s','待匹配':'bd-w','部分匹配':'bd-i','入池成功':'bd-s','重复拒绝':'bd-d','查验失败':'bd-d','OCR失败':'bd-w','识别中...':'bd-g','手工录入':'bd-i'};return '<span class="bd '+(m[s]||'bd-g')+'">'+s+'</span>'}
+function m2_avail(){return S2.cr.total-S2.cr.used}
+function m2_qhtml(){var a=m2_avail(),p=Math.round(a/S2.cr.total*100);return '<div class="qb"><div style="font-size:12px;color:#999;margin-bottom:6px">授信额度池（先款后票）</div><div class="qr"><div><div class="ql">总额度</div><div class="qv">'+fm(S2.cr.total)+'</div></div><div><div class="ql">已占用</div><div class="qv" style="color:#d48806">'+fm(S2.cr.used)+'</div></div><div><div class="ql">可用</div><div class="qv" style="color:#389e0d">'+fm(a)+'</div></div></div><div class="bar"><div class="bar-f" style="width:'+p+'%"></div></div><div class="bt">可用 '+p+'%</div></div>'}
+function m2_renderShell(m){
+  var tabs=M2_MENUS.map(function(t){return '<div class="mod-tab'+(S2.pg===t.id?' active':'')+'" onclick="m2_go(\''+t.id+'\')">'+t.label+'</div>'}).join('');
+  m.innerHTML='<div style="margin-bottom:4px"><span style="font-size:11px;color:#999">财务结算</span> <span style="color:#d9d9d9">›</span> <span style="font-size:11px;color:#1677ff">先款后票（授信追票）</span></div><div class="mod-nav">'+tabs+'</div><div id="M2C"></div>';
+  m2_renderPage();
+}
+function m2_go(p){S2.pg=p;m2_renderShell($('MAIN'))}
+function m2_renderPage(){var c=$('M2C');if(!c)return;
+  if(S2.pg==='credit'){var um=S2.bills.reduce(function(s,b){return s+b.total-b.matched},0);
+    c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px"><div><div class="pt">授信额度</div><div class="ps">先款后票：在授信额度内先付款，后追票</div></div>'+m2_qhtml()+'</div><div class="g2"><div class="sc"><div class="sl">待追票金额</div><div style="font-size:15px;font-weight:600;margin-top:3px;color:#d48806">'+fm(um)+'</div></div><div class="sc"><div class="sl">授信有效期</div><div style="font-size:15px;font-weight:600;margin-top:3px">'+S2.rule.credit_days+' 天</div></div><div class="sc"><div class="sl">欠票阈值</div><div style="font-size:15px;font-weight:600;margin-top:3px">'+fm(S2.rule.threshold)+'</div></div><div class="sc"><div class="sl">阈值状态</div><div style="font-size:15px;font-weight:600;margin-top:3px;color:#389e0d">正常</div></div></div><div class="ib">· 在授信额度内先付款，采购账单生成时自动创建追票清单<br>· 发票上传入池成功后，可立即选择账期进行核销<br>· 核销成功后释放授信额度</div>'}
+  else if(S2.pg==='chase'){
+    c.innerHTML='<div class="pt">追票核销</div><div class="ps">按账期查看追票清单，展开订单明细，批量核销</div>'+S2.bills.map(function(b){var pct=b.total>0?Math.round(b.matched/b.total*100):0;var exp=S2.exp[b.id];var st=b.matched>=b.total?'已核销':b.matched>0?'部分匹配':'待匹配';return '<div class="cd" style="padding:0;overflow:hidden"><div class="eh" onclick="m2_toggle(\''+b.id+'\')"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:10px;color:#bbb;transition:transform .2s;display:inline-block;transform:rotate('+(exp?'90':'0')+'deg)">›</span><div><div style="font-size:14px;font-weight:500">'+b.period+'</div><div style="font-size:11px;color:#999">'+b.id+' · 截止 '+b.due+' · '+b.items.length+'笔</div></div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:11px;color:#999">'+fm(b.matched)+' / '+fm(b.total)+'</div><div class="bar" style="width:100px;margin-top:3px"><div class="bar-f" style="width:'+pct+'%"></div></div></div>'+m2_bdg(st)+'</div></div>'+(exp?'<div class="eb"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:500;color:#999">订单明细</div><button class="bi" onclick="event.stopPropagation();m2_batch(\''+b.id+'\')">批量核销待匹配</button></div>'+b.items.map(function(it){return '<div class="ri"><div><div style="font-size:13px;font-weight:500">'+it.order+'</div><div style="font-size:11px;color:#999;display:flex;flex-wrap:wrap;gap:8px;margin-top:2px"><span>旅客：<strong style="color:#333">'+it.guest+'</strong></span>'+(it.checkin?'<span>入住 <strong style="color:#333">'+it.checkin+'</strong></span>':'<span>'+it.date+'</span>')+(it.checkout?'<span>离店 <strong style="color:#333">'+it.checkout+'</strong></span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:500">'+fm(it.amt)+'</span>'+m2_bdg(it.st)+'</div></div>'}).join('')+'</div>':'')+'</div>'}).join('')}
+  else if(S2.pg==='upload'){
+    c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px"><div><div class="pt">发票上传</div><div class="ps">上传发票 → 入池成功后立即选择账期核销，释放授信额度</div></div>'+m2_qhtml()+'</div><div class="dz" id="DZ2"><div style="font-size:14px;font-weight:500;margin-bottom:4px">拖拽发票文件到此处，或点击选择文件</div><div style="font-size:12px;color:#999">支持 PDF / OFD / JPG / PNG，单次最多 50 张</div><div style="display:inline-block;margin-top:10px;padding:6px 16px;border-radius:6px;background:#e6f4ff;color:#1677ff;font-size:13px;font-weight:500">选择文件上传</div><input type="file" id="FI2" multiple accept=".pdf,.ofd,.jpg,.jpeg,.png" style="display:none"></div><div id="UL2"></div>';
+    setTimeout(function(){var dz=$('DZ2'),fi=$('FI2');if(dz)dz.onclick=function(){fi.click()};if(fi)fi.onchange=function(e){m2_procFiles(e.target.files);fi.value=''}},30)}
+  else if(S2.pg==='pool'){c.innerHTML='<div class="pt">发票池</div><div class="ps">入池即锁定只读</div>'+S2.pool.map(function(x){return '<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:14px;font-weight:500">'+x.id+'</span><div><span class="bd bd-g" style="margin-right:4px">'+x.src+'</span>'+m2_bdg(x.st)+'</div></div><div class="g3"><div><div class="fl">发票代码</div><div class="fv">'+x.code+'</div></div><div><div class="fl">发票号码</div><div class="fv">'+x.num+'</div></div><div><div class="fl">开票日期</div><div class="fv">'+x.date+'</div></div><div><div class="fl">金额</div><div class="fv">'+fm(x.amt)+'</div></div><div><div class="fl">税额</div><div class="fv">'+fm(x.tax)+'</div></div><div><div class="fl">价税合计</div><div class="fv hl">'+fm(x.total)+'</div></div></div><div style="font-size:11px;color:#bbb;margin-top:8px">入池：'+x.tm+'</div></div>'}).join('')}
+  else if(S2.pg==='usage'){c.innerHTML='<div class="pt">额度占用记录</div><div class="ps">授信额度变动明细</div>'+S2.log.map(function(l){return '<div class="ri"><div><div style="font-size:13px;font-weight:500">'+l.desc+'</div><div style="font-size:11px;color:#999;display:flex;flex-wrap:wrap;gap:8px;margin-top:2px"><span>'+l.time+'</span>'+(l.guest?'<span>旅客：<strong style="color:#333">'+l.guest+'</strong></span>':'')+(l.order?'<span>订单：<strong style="color:#333">'+l.order+'</strong></span>':'')+(l.checkin?'<span>入住 <strong style="color:#333">'+l.checkin+'</strong></span>':'')+(l.checkout?'<span>离店 <strong style="color:#333">'+l.checkout+'</strong></span>':'')+'</div></div><div style="font-size:15px;font-weight:600;color:'+(l.type==='+'?'#389e0d':l.type==='-'?'#cf1322':'#999')+'">'+(l.type==='='?'':l.type)+fm(l.delta)+'</div></div>'}).join('')+'<div style="margin-top:14px">'+m2_qhtml()+'</div>'}
+  else if(S2.pg==='rule'){var r=S2.rule;c.innerHTML='<div class="pt">结算规则</div><div class="ps">由信用等级驱动</div><div class="cd"><div class="g2">'+[['发票模式',r.mode],['退订结算方式',r.refund],['供应商结算方式',r.settle],['欠款阈值',fm(r.threshold)],['授信有效期',r.credit_days+'天'],['最晚退款天数',r.max_refund+'天'],['最晚开票天数',r.max_invoice+'天'],['体量等级',r.level_t],['信用等级',r.level_l]].map(function(p){return '<div style="margin-bottom:10px"><div class="fl">'+p[0]+'</div><div style="font-size:14px;font-weight:500;margin-top:2px">'+p[1]+'</div></div>'}).join('')+'</div></div><div class="ib">· 在授信额度内先付款，采购账单生成时自动创建追票清单<br>· 核销成功释放授信额度 · 欠票超阈值 → 付款阻断 + 下架审批</div>'}
+}
+function m2_toggle(id){S2.exp[id]=!S2.exp[id];m2_renderPage()}
+function m2_batch(bid){var b=S2.bills.find(function(x){return x.id===bid});if(!b)return;b.items.forEach(function(it){if(it.st==='待匹配'){it.st='已核销';b.matched+=it.amt;S2.cr.used=Math.max(0,S2.cr.used-it.amt);S2.log.unshift({time:new Date().toLocaleString('zh-CN'),desc:'核销释放 '+it.order,delta:it.amt,type:'+'})}});m2_renderPage()}
+function m2_gi(fn){var c='0'+String(Math.floor(Math.random()*9e6+1e6));var n=String(Math.floor(Math.random()*9e7+1e7));var a=Math.round(Math.random()*25000+5000);var tx=Math.round(a*0.06);var r=Math.random();var s,re;
+  if(r<0.08){s='重复拒绝';re='该发票已存在'}else if(r<0.22){s='查验失败';re=VF2[Math.floor(Math.random()*VF2.length)]}else if(r<0.30){s='OCR失败';re=OF2[Math.floor(Math.random()*OF2.length)]}else{s='识别中...';re=null}
+  return{id:'FP-'+String(S2.pool.length+Math.floor(Math.random()*900)+100).padStart(3,'0'),f:fn,code:c,num:n,amt:a,tax:tx,total:a+tx,date:'2026-04-08',src:'商家上传',st:s,reason:re,tm:new Date().toLocaleString('zh-CN'),reconciled:false,selectedBill:null,reconciledTo:null}}
+function m2_procFiles(files){if(files.length>50){alert('单次最多50张');return}S2.ur=[];for(var i=0;i<files.length;i++)S2.ur.push(m2_gi(files[i].name));m2_ru();
+  S2.ur.forEach(function(inv,j){if(inv.st==='识别中...'){setTimeout(function(){inv.st='入池成功';inv.reason=null;S2.pool.unshift({id:inv.id,code:inv.code,num:inv.num,amt:inv.amt,tax:inv.tax,total:inv.total,date:inv.date,src:'商家上传',st:'已入池',tm:inv.tm});m2_ru()},1000+j*400)}})}
+function m2_ru(){var ul=$('UL2');if(!ul||!S2.ur.length)return;var ok=S2.ur.filter(function(i){return i.st==='入池成功'||i.st==='手工录入'||i.st==='已核销'});
+  var h='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:14px">'+[['总计',S2.ur.length,'#1677ff'],['成功',ok.length,'#389e0d'],['重复',S2.ur.filter(function(i){return i.st==='重复拒绝'}).length,'#cf1322'],['查验失败',S2.ur.filter(function(i){return i.st==='查验失败'}).length,'#cf1322'],['OCR失败',S2.ur.filter(function(i){return i.st==='OCR失败'}).length,'#d48806']].map(function(s){return '<div class="sc"><div class="sl">'+s[0]+'</div><div class="sv" style="color:'+s[2]+'">'+s[1]+'</div></div>'}).join('')+'</div>';
+  h+=S2.ur.map(function(x,i){var isErr=x.st==='重复拒绝'||x.st==='查验失败'||x.st==='OCR失败';var isOk=x.st==='入池成功'||x.st==='手工录入';var isDone=x.st==='已核销';
+    var card='<div class="cd" style="border-color:'+(isDone?'#b7eb8f':isErr?'#ffa39e':isOk?'#91caff':'#e5e5e5')+'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:13px;font-weight:500">'+x.f+'</span>'+m2_bdg(x.st)+'</div>';
+    if(x.st!=='OCR失败')card+='<div class="g3"><div><div class="fl">发票代码</div><div class="fv">'+x.code+'</div></div><div><div class="fl">发票号码</div><div class="fv">'+x.num+'</div></div><div><div class="fl">金额</div><div class="fv">'+fm(x.amt)+'</div></div><div><div class="fl">税额</div><div class="fv">'+fm(x.tax)+'</div></div><div><div class="fl">价税合计</div><div class="fv hl">'+fm(x.total)+'</div></div></div>';
+    if(x.reason)card+='<div class="em">'+x.reason+'</div>';
+    if(x.st==='查验失败'||x.st==='OCR失败')card+='<button class="bi" onclick="m2_om('+i+')">手工录入</button>';
+    if(isOk&&!x.reconciled){card+='<div class="step-box"><div class="step-title">选择账期进行核销</div>'+S2.bills.map(function(b){var sel=x.selectedBill===b.id;var pct=b.total>0?Math.round(b.matched/b.total*100):0;return '<div class="bill-opt'+(sel?' sel':'')+'" onclick="m2_selBill('+i+',\''+b.id+'\')"><div class="bo-t"><div class="bo-n">'+b.period+'</div>'+m2_bdg(sel?'已选择':'可核销')+'</div><div class="bo-d"><span>追票 '+fm(b.total)+'</span><span>已核销 '+fm(b.matched)+'('+pct+'%)</span><span>截止 '+b.due+'</span></div></div>'}).join('');
+      if(x.selectedBill){var sb=S2.bills.find(function(b){return b.id===x.selectedBill});card+='<div class="cf-bar"><div style="font-size:13px">将 <strong>'+fm(x.total)+'</strong> 核销至 <strong>'+sb.period+'</strong></div><button class="bp" onclick="m2_doR('+i+')">确认核销</button></div>'}
+      card+='</div>'}
+    if(isDone)card+='<div class="ok-box">已核销至 '+x.reconciledTo+'，释放额度 '+fm(x.total)+'</div>';
+    card+='<div style="font-size:11px;color:#bbb;margin-top:8px">'+x.tm+'</div></div>';return card}).join('');
+  ul.innerHTML=h}
+function m2_selBill(idx,bid){S2.ur[idx].selectedBill=bid;m2_ru()}
+function m2_doR(idx){var x=S2.ur[idx];var b=S2.bills.find(function(bb){return bb.id===x.selectedBill});if(!b)return;b.matched+=x.total;x.st='已核销';x.reconciled=true;x.reconciledTo=b.period;S2.cr.used=Math.max(0,S2.cr.used-x.total);S2.log.unshift({time:new Date().toLocaleString('zh-CN'),desc:'发票 '+x.id+' 核销至'+b.period+'，释放额度',delta:x.total,type:'+'});m2_ru()}
+function m2_om(i){var x=S2.ur[i];var mo=$('MD');mo.style.display='flex';
+  mo.innerHTML='<div class="ml"><h3>手工录入发票信息</h3><p class="ms">'+(x.reason||'请手动填写')+'</p><div class="mg"><div class="mf"><label>发票代码 *</label><input id="m2c" placeholder="03200000"></div><div class="mf"><label>发票号码 *</label><input id="m2n" placeholder="12345678"></div><div class="mf"><label>开票日期 *</label><input id="m2d" placeholder="2026-04-08"></div><div class="mf"><label>金额（不含税）*</label><input id="m2a" type="number" placeholder="10000"></div><div class="mf"><label>税额（自动）</label><input id="m2t" readonly></div><div class="mf"><label>价税合计（自动）</label><input id="m2s" readonly></div></div><div class="ma"><button class="bs" onclick="closeM()">取消</button><button class="bp" onclick="m2_sm('+i+')">确认入池</button></div></div>';
+  mo.onclick=function(e){if(e.target===mo)closeM()};
+  setTimeout(function(){var ai=$('m2a');if(ai)ai.addEventListener('input',function(){var v=parseFloat(ai.value)||0;$('m2t').value=Math.round(v*0.06);$('m2s').value=Math.round(v*1.06)})},50)}
+function m2_sm(i){var x=S2.ur[i];var a=parseFloat($('m2a').value)||0;x.code=$('m2c').value||x.code;x.num=$('m2n').value||x.num;x.amt=a;x.tax=Math.round(a*0.06);x.total=Math.round(a*1.06);x.st='入池成功';x.reason=null;S2.pool.unshift({id:x.id,code:x.code,num:x.num,amt:x.amt,tax:x.tax,total:x.total,date:$('m2d').value||'2026-04-08',src:'手工录入',st:'已入池',tm:x.tm});closeM();m2_ru()}
+
+// ════════════════════════════════════════════════
+// MODULE 3：追款管理
+// ════════════════════════════════════════════════
+var S3={pg:'detail',
+debt:{supplier_id:'SUP-20260401',refund_debt:38000,deduct_debt:12000,total_debt:50000,debt_threshold:50000,is_overdue:1},
+details:[
+  {id:'SDD-20260312-001',order:'PO-0310-101',amt:12000,refund_type:1,status:'追款中',source:1,time:'2026-03-12 10:30',due:'2026-04-12'},
+  {id:'SDD-20260317-002',order:'PO-0315-102',amt:8000,refund_type:1,status:'追款中',source:1,time:'2026-03-17 14:20',due:'2026-04-17'},
+  {id:'SDD-20260320-003',order:'PO-0318-103',amt:6000,refund_type:1,status:'追款中',source:1,time:'2026-03-20 09:15',due:'2026-04-20'},
+  {id:'SDD-20260322-004',order:'PO-0320-104',amt:7000,refund_type:1,status:'追款中',source:1,time:'2026-03-22 11:00',due:'2026-04-22'},
+  {id:'SDD-20260324-005',order:'PO-0322-105',amt:5000,refund_type:1,status:'追款中',source:1,time:'2026-03-24 16:45',due:'2026-04-24'},
+  {id:'SDD-20260303-006',order:'PO-0301-106',amt:15000,refund_type:1,status:'已还清',source:1,time:'2026-03-03 08:30',due:'2026-04-03'},
+  {id:'SDD-20260307-007',order:'PO-0305-107',amt:8000,refund_type:2,status:'已还清',source:1,time:'2026-03-07 10:00',due:'2026-04-07'},
+  {id:'SDD-20260310-008',order:'PO-0308-108',amt:4000,refund_type:1,status:'已还清',source:2,time:'2026-03-10 14:30',due:'2026-04-10'}
+],
+deductions:[
+  {id:'DR-20260301-001',order:'PO-0301-201',type:1,amt:25000,pool:'DP-001',status:'有效',time:'2026-03-01 09:00',ref:''},
+  {id:'DR-20260305-002',order:'PO-0305-202',type:1,amt:18000,pool:'DP-001',status:'有效',time:'2026-03-05 11:30',ref:''},
+  {id:'DR-20260312-003',order:'PO-0310-301',type:2,amt:8000,pool:'DP-001',status:'已红冲',time:'2026-03-12 14:00',ref:'DR-20260301-001'},
+  {id:'DR-20260315-004',order:'PO-0315-203',type:1,amt:10000,pool:'DP-001',status:'有效',time:'2026-03-15 10:00',ref:''},
+  {id:'DR-20260322-005',order:'PO-0320-302',type:2,amt:4000,pool:'DP-001',status:'已红冲',time:'2026-03-22 16:30',ref:'DR-20260305-002'}
+],
+pool:{total_in:53000,total_out:49000,available:4000}};
+var M3_MENUS=[{id:'detail',label:'追款明细'},{id:'summary',label:'欠款汇总'},{id:'deduction',label:'抵扣记录'}];
+function m3_bdg(s){var m={'追款中':'bd-d','已还清':'bd-s','待确认':'bd-w','有效':'bd-s','已红冲':'bd-w'};return '<span class="bd '+(m[s]||'bd-g')+'">'+s+'</span>'}
+function m3_od(max){var d=new Date(),m=new Date(max);return Math.max(0,Math.floor((d-m)/86400000))}
+function m3_renderShell(m){
+  var tabs=M3_MENUS.map(function(t){return '<div class="mod-tab'+(S3.pg===t.id?' active':'')+'" onclick="m3_go(\''+t.id+'\')">'+t.label+'</div>'}).join('');
+  m.innerHTML='<div style="margin-bottom:4px"><span style="font-size:11px;color:#999">财务结算</span> <span style="color:#d9d9d9">›</span> <span style="font-size:11px;color:#1677ff">追款管理</span></div><div class="mod-nav">'+tabs+'</div><div id="M3C"></div>';
+  m3_renderPage();
+}
+function m3_go(p){S3.pg=p;m3_renderShell($('MAIN'))}
+function m3_renderPage(){var c=$('M3C');if(!c)return;var d=S3.debt,ov=d.total_debt>=d.debt_threshold;
+  if(S3.pg==='detail'){var ch=S3.details.filter(function(x){return x.status==='追款中'});var cl=S3.details.filter(function(x){return x.status==='已还清'});
+    c.innerHTML='<div class="pt">追款明细</div><div class="ps">每笔退票产生一条欠款明细，系统自动生成</div>'+
+    '<div style="font-size:13px;font-weight:500;margin-bottom:8px;color:#cf1322">追款中（'+ch.length+'笔，合计 '+fm(ch.reduce(function(s,x){return s+x.amt},0))+'）</div>'+
+    '<div style="overflow-x:auto"><table class="tbl"><tr><th>明细编号</th><th>关联采购订单</th><th>欠款金额</th><th>退款方式</th><th>状态</th><th>数据来源</th><th>生成时间</th><th>最晚退款日</th><th>逾期天数</th></tr>'+
+    ch.map(function(x){var days=m3_od(x.due);return '<tr><td style="font-size:12px;color:#666">'+x.id+'</td><td style="font-size:12px;color:#666">'+x.order+'</td><td style="font-weight:500;color:#cf1322">'+fm(x.amt)+'</td><td>'+(x.refund_type===1?'退款':'抵扣')+'</td><td>'+m3_bdg(x.status)+'</td><td>'+(x.source===1?'系统生成':'历史导入')+'</td><td style="font-size:12px">'+x.time+'</td><td>'+x.due+'</td><td style="color:'+(days>20?'#cf1322':'#d48806')+'">'+days+'天</td></tr>'}).join('')+
+    '</table></div><div style="font-size:13px;font-weight:500;margin:18px 0 8px;color:#389e0d">已还清（'+cl.length+'笔）</div>'+
+    '<div style="overflow-x:auto"><table class="tbl"><tr><th>明细编号</th><th>关联采购订单</th><th>欠款金额</th><th>退款方式</th><th>状态</th><th>数据来源</th><th>生成时间</th><th>最晚退款日</th></tr>'+
+    cl.map(function(x){return '<tr><td style="font-size:12px;color:#666">'+x.id+'</td><td style="font-size:12px;color:#666">'+x.order+'</td><td>'+fm(x.amt)+'</td><td>'+(x.refund_type===1?'退款':'抵扣')+'</td><td>'+m3_bdg(x.status)+'</td><td>'+(x.source===1?'系统生成':'历史导入')+'</td><td style="font-size:12px">'+x.time+'</td><td>'+x.due+'</td></tr>'}).join('')+'</table></div>'+
+    '<div class="ib">· 欠款明细状态：待确认 → 追款中 → 已还清<br>· 最晚退款日超期进入疑难追款<br>· 退款方式：退款（走追款链路）/ 抵扣（走抵扣池恢复）</div>'}
+  else if(S3.pg==='summary'){var pct=d.debt_threshold>0?Math.min(100,Math.round(d.total_debt/d.debt_threshold*100)):0;var chCnt=S3.details.filter(function(x){return x.status==='追款中'}).length;var clCnt=S3.details.filter(function(x){return x.status==='已还清'}).length;
+    c.innerHTML='<div class="pt">欠款汇总</div><div class="ps">每商家一条汇总记录，系统自动维护</div>'+
+    '<div class="g4"><div class="sc"><div class="sl">退款欠款</div><div class="sv" style="color:#cf1322">'+fm(d.refund_debt)+'</div></div><div class="sc"><div class="sl">抵扣欠款</div><div class="sv" style="color:#d48806">'+fm(d.deduct_debt)+'</div></div><div class="sc"><div class="sl">欠款合计</div><div class="sv" style="color:#cf1322">'+fm(d.total_debt)+'</div></div><div class="sc"><div class="sl">欠款阈值</div><div class="sv">'+fm(d.debt_threshold)+'</div></div></div>'+
+    '<div class="cd" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:14px;font-weight:500">阈值状态</div><div style="font-size:13px;font-weight:500;color:'+(ov?'#cf1322':'#389e0d')+'">'+(ov?'已达阈值 — 付款已阻断':'正常')+'</div></div><div class="bar"><div class="bar-f" style="width:'+pct+'%;background:'+(pct>=100?'#cf1322':pct>=80?'#d48806':'#389e0d')+'"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#999;margin-top:4px"><span>欠款 '+fm(d.total_debt)+'</span><span>阈值 '+fm(d.debt_threshold)+' ('+pct+'%)</span></div></div>'+
+    '<div class="g4" style="margin-top:14px"><div class="sc"><div class="sl">明细总数</div><div class="sv" style="color:#1677ff">'+S3.details.length+' 笔</div></div><div class="sc"><div class="sl">追款中</div><div class="sv" style="color:#cf1322">'+chCnt+' 笔</div></div><div class="sc"><div class="sl">已还清</div><div class="sv" style="color:#389e0d">'+clCnt+' 笔</div></div></div>'+
+    (ov?'<div class="wb"><strong>超阈值预警</strong><br>· 欠款合计 '+fm(d.total_debt)+' 已达到欠款阈值 '+fm(d.debt_threshold)+'<br>· 系统已自动发起下架审批<br>· 该商家后续付款单已被阻断<br>· 商家还款后欠款降至阈值以下，自动解除阻断并撤销审批单</div>':'')+
+    '<div class="ib">· 欠款合计 = 退款欠款 + 抵扣欠款<br>· 欠款阈值由 5×5 体量×信用矩阵驱动<br>· 阈值校验每次欠款更新后立即触发</div>'}
+  else if(S3.pg==='deduction'){var p=S3.pool;
+    c.innerHTML='<div class="pt">抵扣记录</div><div class="ps">正向抵扣（扣减）和红冲（恢复）两种类型</div>'+
+    '<div class="g4" style="margin-bottom:18px"><div class="sc"><div class="sl">累计转入</div><div class="sv" style="color:#1677ff">'+fm(p.total_in)+'</div></div><div class="sc"><div class="sl">累计转出</div><div class="sv" style="color:#d48806">'+fm(p.total_out)+'</div></div><div class="sc"><div class="sl">当前可用余额</div><div class="sv" style="color:#389e0d">'+fm(p.available)+'</div></div></div>'+
+    '<div style="overflow-x:auto"><table class="tbl"><tr><th>记录编号</th><th>关联采购订单</th><th>记录类型</th><th>抵扣金额</th><th>抵扣池编号</th><th>状态</th><th>生成时间</th><th>红冲关联记录</th></tr>'+
+    S3.deductions.map(function(x){var isOut=x.type===1;return '<tr><td style="font-size:12px;color:#666">'+x.id+'</td><td style="font-size:12px;color:#666">'+x.order+'</td><td><span class="bd '+(isOut?'bd-i':'bd-w')+'">'+(isOut?'正向抵扣':'红冲')+'</span></td><td style="font-weight:500;color:'+(isOut?'#cf1322':'#389e0d')+'">'+(isOut?'-':'+')+fm(x.amt)+'</td><td style="font-size:12px;color:#666">'+x.pool+'</td><td>'+m3_bdg(x.status)+'</td><td style="font-size:12px">'+x.time+'</td><td style="font-size:12px;color:#666">'+(x.ref||'-')+'</td></tr>'}).join('')+
+    '</table></div><div class="ib">· 可用余额 = 累计转入 - 累计转出<br>· 余额不足时整笔转付款单，不做部分抵扣<br>· 红冲时对应原抵扣记录，账务全程可追溯</div>'}
+}
+
+// ────────────────────────────────────────────────
+// INIT
+// ────────────────────────────────────────────────
+renderSB();
+renderMain();
+</script>
+</body>
+</html>
