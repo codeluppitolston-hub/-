@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商家服务部 KPI 看板</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:13px}
+.hd{height:50px;background:#fff;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;padding:0 24px;position:fixed;top:0;left:0;right:0;z-index:200;gap:10px}
+.sq{width:22px;height:22px;background:#1677ff;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0}
+.lg{font-size:15px;font-weight:700;color:#1677ff;letter-spacing:1px}
+.sep{width:1px;height:20px;background:#e5e5e5}
+.hd-title{font-size:14px;font-weight:600}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:#888}
+.hd-right select{border:1px solid #e5e5e5;border-radius:4px;padding:3px 8px;font-size:12px;color:#333;background:#fff;cursor:pointer}
+.wrap{padding:70px 24px 32px}
+/* view tabs */
+.vtabs{display:flex;gap:8px;margin-bottom:22px}
+.vtab{padding:7px 20px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:500;border:1px solid #e5e5e5;background:#fff;color:#666;transition:all .15s}
+.vtab:hover{border-color:#1677ff;color:#1677ff}
+.vtab.on{background:#1677ff;color:#fff;border-color:#1677ff}
+/* layout grids */
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+/* card */
+.cd{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px 18px}
+/* section header */
+.sh{font-size:13px;font-weight:600;margin:20px 0 12px;color:#333;display:flex;align-items:center;gap:8px}
+.sh::after{content:'';flex:1;height:1px;background:#efefef}
+/* rating */
+.rg{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;font-size:13px;font-weight:800}
+.rS{background:#fff7e6;color:#fa8c16}.rA{background:#f6ffed;color:#389e0d}.rB{background:#e6f4ff;color:#1677ff}.rC{background:#fff2f0;color:#cf1322}
+/* badge */
+.bd{font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;display:inline-block;white-space:nowrap}
+.ok{background:#f6ffed;color:#389e0d}.warn{background:#fffbe6;color:#d48806}.fail{background:#fff2f0;color:#cf1322}
+/* metric row */
+.mr{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;gap:8px}
+.mr:last-child{border-bottom:none}
+.mr-n{width:148px;flex-shrink:0;font-size:12px;color:#555}
+.mr-b{flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden}
+.mr-f{height:100%;border-radius:3px}
+.mr-v{width:46px;text-align:right;font-size:12px;font-weight:600;flex-shrink:0}
+.mr-t{width:58px;text-align:right;font-size:11px;color:#bbb;flex-shrink:0}
+.mr-s{width:40px;text-align:center;flex-shrink:0}
+/* sub tabs */
+.stabs{display:flex;gap:0;border-bottom:2px solid #e5e5e5;margin-bottom:18px}
+.stab{padding:8px 18px;cursor:pointer;font-size:13px;color:#666;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.stab:hover{color:#1677ff}
+.stab.on{color:#1677ff;border-bottom-color:#1677ff;font-weight:500}
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e5e5e5}
+.tbl th{text-align:left;padding:10px 12px;background:#fafafa;border-bottom:1px solid #e5e5e5;font-weight:500;font-size:11px;color:#666;white-space:nowrap}
+.tbl td{padding:9px 12px;border-bottom:1px solid #f5f5f5;white-space:nowrap;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#fafafa}
+/* number */
+.big{font-size:36px;font-weight:800;line-height:1.1}
+.med{font-size:20px;font-weight:700;margin-top:3px}
+.sub{font-size:11px;color:#999;margin-top:3px}
+.tag{font-size:10px;padding:1px 5px;border-radius:3px;background:#e6f4ff;color:#1677ff;font-weight:500}
+</style>
+</head>
+<body>
+<div class="hd">
+  <div class="sq">壹</div><div class="lg">差旅壹号</div>
+  <div class="sep"></div>
+  <div class="hd-title">商家服务部 · KPI 看板</div>
+  <div class="hd-right">
+    <span>统计月份</span>
+    <select id="MON" onchange="renderAll()">
+      <option>2026年4月</option><option>2026年3月</option><option>2026年2月</option>
+    </select>
+    <div class="sep"></div>
+    <span>更新：2026-04-12</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="vtabs">
+    <div class="vtab on" onclick="sv('dept')">🏢 商家服务部总览</div>
+    <div class="vtab" onclick="sv('team')">👥 班组看板</div>
+    <div class="vtab" onclick="sv('spec')">👤 专员明细</div>
+  </div>
+  <div id="MAIN"></div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+var MDEF=[
+  {k:'debt_rate', n:'追款回款率',       tgt:85,  inv:false},
+  {k:'overdue_debt',n:'超期欠款比率',   tgt:15,  inv:true },
+  {k:'offline_rate',n:'下架申请及时率', tgt:100, inv:false},
+  {k:'diff_debt',   n:'疑难追款处理及时率',tgt:90,inv:false},
+  {k:'invoice_rate',n:'追票核销率',     tgt:90,  inv:false},
+  {k:'overdue_inv', n:'超期追票比率',   tgt:10,  inv:true },
+  {k:'diff_inv',    n:'疑难追票处理及时率',tgt:85,inv:false},
+  {k:'sla',         n:'审批SLA达成率',  tgt:95,  inv:false},
+  {k:'credit_upd',  n:'信用档案更新及时率',tgt:95,inv:false}
+];
+var MDEF_TEAM=MDEF.concat([{k:'spec_a',n:'专员达A率',tgt:75,inv:false}]);
+var MDEF_DEPT=MDEF_TEAM.concat([{k:'team_a',n:'班组达A率',tgt:80,inv:false}]);
+
+var DEPT={score:88,rating:'A',merchantCount:214,
+  m:{debt_rate:87,overdue_debt:13,offline_rate:98,diff_debt:90,invoice_rate:91,
+     overdue_inv:9,diff_inv:89,sla:96,credit_upd:96,spec_a:78,team_a:67}};
+
+var TEAMS=[
+  {id:'t1',name:'追款一组',leader:'李明',score:89,rating:'A',mc:75,
+   m:{debt_rate:87,overdue_debt:13,offline_rate:98,diff_debt:91,invoice_rate:91,
+      overdue_inv:9,diff_inv:88,sla:96,credit_upd:96,spec_a:67}},
+  {id:'t2',name:'追款二组',leader:'陈静',score:86,rating:'A',mc:62,
+   m:{debt_rate:85,overdue_debt:15,offline_rate:97,diff_debt:87,invoice_rate:89,
+      overdue_inv:11,diff_inv:86,sla:94,credit_upd:94,spec_a:67}},
+  {id:'t3',name:'追票组', leader:'孙鹏',score:91,rating:'A',mc:77,
+   m:{debt_rate:88,overdue_debt:12,offline_rate:98,diff_debt:90,invoice_rate:93,
+      overdue_inv:7,diff_inv:92,sla:96,credit_upd:97,spec_a:100}}
+];
+
+var SPECS=[
+  {name:'李明',tid:'t1',team:'追款一组',role:'班组长',score:91,rating:'A',mc:25,
+   m:{debt_rate:88,overdue_debt:12,offline_rate:100,diff_debt:92,invoice_rate:91,overdue_inv:8,diff_inv:90,sla:96,credit_upd:97}},
+  {name:'张芳',tid:'t1',team:'追款一组',role:'专员',  score:83,rating:'B',mc:22,
+   m:{debt_rate:82,overdue_debt:18,offline_rate:95, diff_debt:85,invoice_rate:88,overdue_inv:12,diff_inv:83,sla:93,credit_upd:94}},
+  {name:'王磊',tid:'t1',team:'追款一组',role:'专员',  score:95,rating:'S',mc:28,
+   m:{debt_rate:91,overdue_debt:9, offline_rate:100,diff_debt:95,invoice_rate:93,overdue_inv:7, diff_inv:92,sla:98,credit_upd:98}},
+  {name:'陈静',tid:'t2',team:'追款二组',role:'班组长',score:93,rating:'S',mc:24,
+   m:{debt_rate:90,overdue_debt:10,offline_rate:100,diff_debt:93,invoice_rate:92,overdue_inv:8, diff_inv:91,sla:97,credit_upd:96}},
+  {name:'刘洋',tid:'t2',team:'追款二组',role:'专员',  score:79,rating:'C',mc:18,
+   m:{debt_rate:79,overdue_debt:21,offline_rate:90, diff_debt:80,invoice_rate:85,overdue_inv:15,diff_inv:78,sla:90,credit_upd:91}},
+  {name:'赵梅',tid:'t2',team:'追款二组',role:'专员',  score:88,rating:'A',mc:20,
+   m:{debt_rate:86,overdue_debt:14,offline_rate:100,diff_debt:88,invoice_rate:90,overdue_inv:10,diff_inv:87,sla:95,credit_upd:95}},
+  {name:'孙鹏',tid:'t3',team:'追票组', role:'班组长',score:92,rating:'A',mc:26,
+   m:{debt_rate:87,overdue_debt:13,offline_rate:100,diff_debt:89,invoice_rate:94,overdue_inv:6, diff_inv:93,sla:96,credit_upd:97}},
+  {name:'周丽',tid:'t3',team:'追票组', role:'专员',  score:86,rating:'A',mc:21,
+   m:{debt_rate:84,overdue_debt:16,offline_rate:95, diff_debt:86,invoice_rate:91,overdue_inv:9, diff_inv:88,sla:94,credit_upd:94}},
+  {name:'吴强',tid:'t3',team:'追票组', role:'专员',  score:97,rating:'S',mc:30,
+   m:{debt_rate:93,overdue_debt:7, offline_rate:100,diff_debt:96,invoice_rate:95,overdue_inv:5, diff_inv:94,sla:99,credit_upd:99}}
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+var VIEW='dept', TIDX=0, SFILT='all';
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function rc(r){return r==='S'?'#fa8c16':r==='A'?'#389e0d':r==='B'?'#1677ff':'#cf1322'}
+function ok(v,t,inv){return inv?v<=t:v>=t}
+function wn(v,t,inv){return inv?(v>t&&v<=t*1.2):(v<t&&v>=t*0.95)}
+function st(v,t,inv){return ok(v,t,inv)?'<span class="bd ok">达标</span>':wn(v,t,inv)?'<span class="bd warn">预警</span>':'<span class="bd fail">未达</span>'}
+function bc(v,t,inv){return ok(v,t,inv)?'#52c41a':wn(v,t,inv)?'#faad14':'#ff4d4f'}
+function bp(v,t,inv){return inv?Math.min(100,Math.max(0,Math.round((t*2-v)/t*50))):Math.min(100,v)}
+function mrows(m,defs){
+  return defs.map(function(d){
+    var v=m[d.k]||0,clr=bc(v,d.tgt,d.inv);
+    return '<div class="mr"><div class="mr-n">'+d.n+'</div><div class="mr-b"><div class="mr-f" style="width:'+bp(v,d.tgt,d.inv)+'%;background:'+clr+'"></div></div><div class="mr-v" style="color:'+clr+'">'+v+'%</div><div class="mr-t">目标'+(d.inv?'≤':'')+d.tgt+'%</div><div class="mr-s">'+st(v,d.tgt,d.inv)+'</div></div>'
+  }).join('')
+}
+function specCard(s){
+  var ach=MDEF.filter(function(d){return ok(s.m[d.k],d.tgt,d.inv)}).length;
+  return '<div class="cd" style="border-top:3px solid '+rc(s.rating)+'">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'+
+    '<div><div style="font-size:14px;font-weight:600">'+s.name+'</div>'+
+    '<div style="font-size:11px;color:#999;margin-top:2px">'+s.team+' · '+s.role+'</div></div>'+
+    '<div style="text-align:right"><div style="font-size:28px;font-weight:800;color:'+rc(s.rating)+'">'+s.score+'</div>'+
+    '<span class="rg r'+s.rating+'">'+s.rating+'</span></div></div>'+
+    '<div style="font-size:11px;color:#999;margin-bottom:8px">负责商家 <strong style="color:#333">'+s.mc+'</strong> 家 · 达标指标 <strong style="color:'+rc(s.rating)+'">'+ach+'/'+MDEF.length+'</strong></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px">'+
+    MDEF.map(function(d){var v=s.m[d.k];var clr=bc(v,d.tgt,d.inv);return '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #f5f5f5;font-size:11px"><span style="color:#888">'+d.n+'</span><span style="font-weight:600;color:'+clr+'">'+v+'%</span></div>'}).join('')+
+    '</div></div>'
+}
+
+// ─── DEPT VIEW ────────────────────────────────────────────────────────────────
+function renderDept(){
+  var sa=SPECS.filter(function(s){return s.rating==='S'||s.rating==='A'}).length;
+  var ss=SPECS.filter(function(s){return s.rating==='S'}).length;
+  var mon=document.getElementById('MON').value;
+  var html='<div style="margin-bottom:20px"><div style="font-size:16px;font-weight:700">商家服务部</div><div style="font-size:12px;color:#999;margin-top:3px">'+mon+' 月度KPI总览 · 共 '+TEAMS.length+' 个班组 · '+SPECS.length+' 名专员 · 在管商家 '+DEPT.merchantCount+' 家</div></div>';
+  // top 4 cards
+  html+='<div class="g4">';
+  html+='<div class="cd" style="border-top:4px solid '+rc(DEPT.rating)+'"><div class="sub">部门综合得分</div><div class="big" style="color:'+rc(DEPT.rating)+'">'+DEPT.score+'</div><div style="display:flex;align-items:center;gap:6px;margin-top:6px"><span class="rg r'+DEPT.rating+'">'+DEPT.rating+'</span><span style="font-size:11px;color:#389e0d">↑ 较上月 +2.1</span></div></div>';
+  html+='<div class="cd"><div class="sub">专员达A及以上</div><div class="med" style="color:#389e0d">'+sa+' / '+SPECS.length+' 人</div><div class="sub">S级 '+ss+' 人 · 达标率 '+Math.round(sa/SPECS.length*100)+'%</div></div>';
+  html+='<div class="cd"><div class="sub">追款回款率</div><div class="med" style="color:'+bc(DEPT.m.debt_rate,85,false)+'">'+DEPT.m.debt_rate+'%</div><div class="sub">目标 ≥85% &nbsp;'+st(DEPT.m.debt_rate,85,false)+'</div></div>';
+  html+='<div class="cd"><div class="sub">追票核销率</div><div class="med" style="color:'+bc(DEPT.m.invoice_rate,90,false)+'">'+DEPT.m.invoice_rate+'%</div><div class="sub">目标 ≥90% &nbsp;'+st(DEPT.m.invoice_rate,90,false)+'</div></div>';
+  html+='</div>';
+  // team cards
+  html+='<div class="sh">班组概览</div><div class="g3">';
+  TEAMS.forEach(function(t){
+    var tsa=SPECS.filter(function(s){return s.tid===t.id&&(s.rating==='S'||s.rating==='A')}).length;
+    html+='<div class="cd" style="border-top:3px solid '+rc(t.rating)+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
+      '<div><div style="font-size:14px;font-weight:600">'+t.name+'</div>'+
+      '<div style="font-size:11px;color:#999;margin-top:2px">班组长：'+t.leader+'</div></div>'+
+      '<div style="text-align:right"><div style="font-size:30px;font-weight:800;color:'+rc(t.rating)+'">'+t.score+'</div>'+
+      '<span class="rg r'+t.rating+'">'+t.rating+'</span></div></div>'+
+      '<div style="margin-top:12px;display:flex;gap:16px;font-size:11px;color:#999">'+
+      '<span>商家 <strong style="color:#333">'+t.mc+'</strong></span>'+
+      '<span>专员 <strong style="color:#333">'+t.m.spec_a+'%</strong> 达A</span></div>'+
+      '<div style="margin-top:10px;font-size:11px;color:#bbb;margin-bottom:4px">追款 '+t.m.debt_rate+'% · 追票 '+t.m.invoice_rate+'% · SLA '+t.m.sla+'%</div>'+
+      '<div style="height:5px;background:#f0f0f0;border-radius:3px"><div style="width:'+t.score+'%;height:100%;border-radius:3px;background:'+rc(t.rating)+'"></div></div>'+
+      '</div>'
+  });
+  html+='</div>';
+  // metrics
+  html+='<div class="sh">部门指标明细</div><div class="cd">'+mrows(DEPT.m,MDEF_DEPT)+'</div>';
+  // ranking table
+  html+='<div class="sh">专员综合排名</div>';
+  var sorted=SPECS.slice().sort(function(a,b){return b.score-a.score});
+  html+='<table class="tbl"><tr><th>#</th><th>姓名</th><th>班组</th><th>角色</th><th>综合得分</th><th>评级</th><th>追款回款率</th><th>追票核销率</th><th>SLA达成率</th><th>负责商家</th></tr>';
+  sorted.forEach(function(s,i){
+    html+='<tr><td style="color:#bbb;font-size:11px">'+(i+1)+'</td>'+
+    '<td style="font-weight:600">'+s.name+'</td>'+
+    '<td style="color:#666">'+s.team+'</td>'+
+    '<td>'+(s.role==='班组长'?'<span class="tag">班组长</span>':'<span style="color:#999;font-size:11px">专员</span>')+'</td>'+
+    '<td><span style="font-size:15px;font-weight:700;color:'+rc(s.rating)+'">'+s.score+'</span></td>'+
+    '<td><span class="rg r'+s.rating+'">'+s.rating+'</span></td>'+
+    '<td style="color:'+bc(s.m.debt_rate,85,false)+'">'+s.m.debt_rate+'%</td>'+
+    '<td style="color:'+bc(s.m.invoice_rate,90,false)+'">'+s.m.invoice_rate+'%</td>'+
+    '<td style="color:'+bc(s.m.sla,95,false)+'">'+s.m.sla+'%</td>'+
+    '<td>'+s.mc+' 家</td></tr>'
+  });
+  html+='</table>';
+  return html;
+}
+
+// ─── TEAM VIEW ────────────────────────────────────────────────────────────────
+function renderTeam(){
+  var t=TEAMS[TIDX];
+  var members=SPECS.filter(function(s){return s.tid===t.id});
+  var html='<div class="stabs">'+
+    TEAMS.map(function(x,i){return '<div class="stab'+(i===TIDX?' on':'')+'" onclick="TIDX='+i+';renderMain()">'+x.name+'</div>'}).join('')+
+    '</div>';
+  // team header
+  var sa=members.filter(function(s){return s.rating==='S'||s.rating==='A'}).length;
+  html+='<div class="cd" style="border-top:4px solid '+rc(t.rating)+';margin-bottom:18px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<div><div style="font-size:18px;font-weight:700">'+t.name+'</div>'+
+    '<div style="font-size:12px;color:#999;margin-top:3px">班组长：<strong style="color:#333">'+t.leader+'</strong> &nbsp;·&nbsp; 在管商家 <strong style="color:#333">'+t.mc+'</strong> 家 &nbsp;·&nbsp; 专员 <strong style="color:#333">'+members.length+'</strong> 人</div></div>'+
+    '<div style="display:flex;align-items:center;gap:16px">'+
+    '<div style="text-align:center"><div style="font-size:11px;color:#999">综合得分</div><div style="font-size:36px;font-weight:800;color:'+rc(t.rating)+'">'+t.score+'</div></div>'+
+    '<div style="text-align:center"><div style="font-size:11px;color:#999">评级</div><div class="rg r'+t.rating+'" style="width:36px;height:36px;font-size:18px;margin-top:4px">'+t.rating+'</div></div>'+
+    '<div style="text-align:center"><div style="font-size:11px;color:#999">专员达A</div><div style="font-size:20px;font-weight:700;color:'+rc(t.rating)+';margin-top:4px">'+sa+'/'+members.length+'</div></div>'+
+    '</div></div></div>';
+  // metrics
+  html+='<div class="g2"><div class="cd"><div class="sh" style="margin-top:0">班组指标详情</div>'+mrows(t.m,MDEF_TEAM)+'</div>';
+  // member cards
+  html+='<div><div class="sh" style="margin-top:0">成员表现</div>'+
+    members.map(function(s){return specCard(s)}).join('<div style="height:14px"></div>')+
+    '</div></div>';
+  return html;
+}
+
+// ─── SPEC VIEW ────────────────────────────────────────────────────────────────
+function renderSpec(){
+  var html='<div class="stabs">'+
+    ['all','t1','t2','t3'].map(function(id,i){
+      var lbl=['全部专员','追款一组','追款二组','追票组'][i];
+      return '<div class="stab'+(SFILT===id?' on':'')+'" onclick="SFILT=\''+id+'\';renderMain()">'+lbl+'</div>'
+    }).join('')+'</div>';
+  var list=SFILT==='all'?SPECS:SPECS.filter(function(s){return s.tid===SFILT});
+  var sorted=list.slice().sort(function(a,b){return b.score-a.score});
+  html+='<div style="overflow-x:auto"><table class="tbl">'+
+    '<tr><th>#</th><th>姓名</th><th>班组</th><th>评级</th><th>综合分</th>'+
+    MDEF.map(function(d){return '<th>'+d.n+'</th>'}).join('')+
+    '<th>负责商家</th></tr>'+
+    sorted.map(function(s,i){
+      return '<tr>'+
+        '<td style="color:#bbb;font-size:11px">'+(i+1)+'</td>'+
+        '<td><div style="font-weight:600">'+s.name+'</div><div style="font-size:10px;color:#999">'+s.role+'</div></td>'+
+        '<td style="color:#666">'+s.team+'</td>'+
+        '<td><span class="rg r'+s.rating+'">'+s.rating+'</span></td>'+
+        '<td><span style="font-size:15px;font-weight:700;color:'+rc(s.rating)+'">'+s.score+'</span></td>'+
+        MDEF.map(function(d){var v=s.m[d.k];return '<td style="color:'+bc(v,d.tgt,d.inv)+'">'+v+'%&nbsp;'+st(v,d.tgt,d.inv)+'</td>'}).join('')+
+        '<td>'+s.mc+'家</td></tr>'
+    }).join('')+
+    '</table></div>';
+  // detail cards
+  html+='<div class="sh">个人KPI详情</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">'+
+    sorted.map(function(s){return specCard(s)}).join('')+'</div>';
+  return html;
+}
+
+// ─── ROUTER ──────────────────────────────────────────────────────────────────
+function sv(v){
+  VIEW=v;
+  document.querySelectorAll('.vtab').forEach(function(el,i){
+    el.classList.toggle('on',['dept','team','spec'][i]===v)
+  });
+  renderMain();
+}
+function renderMain(){
+  var c=document.getElementById('MAIN');
+  if(VIEW==='dept')c.innerHTML=renderDept();
+  else if(VIEW==='team')c.innerHTML=renderTeam();
+  else c.innerHTML=renderSpec();
+}
+function renderAll(){renderMain()}
+renderMain();
+</script>
+</body>
+</html>

@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>供应商发票上传</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f6fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px;
+    color: #1a1a2e;
+  }
+
+  /* 顶部标题 */
+  .page-header {
+    width: 100%;
+    max-width: 560px;
+    margin-bottom: 24px;
+  }
+  .page-header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1a1a2e;
+  }
+  .page-header p {
+    font-size: 13px;
+    color: #8a8fa8;
+    margin-top: 4px;
+  }
+
+  /* 步骤条 */
+  .steps {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 560px;
+    margin-bottom: 28px;
+  }
+  .step-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+  }
+  .step-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: calc(50% + 14px);
+    width: calc(100% - 28px);
+    height: 2px;
+    background: #e0e4ef;
+    transition: background 0.3s;
+  }
+  .step-item.done:not(:last-child)::after { background: #4f6ef7; }
+  .step-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #e0e4ef;
+    color: #aaa;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    z-index: 1;
+  }
+  .step-item.active .step-dot {
+    background: #4f6ef7;
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(79,110,247,0.15);
+  }
+  .step-item.done .step-dot {
+    background: #4f6ef7;
+    color: #fff;
+  }
+  .step-label {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 6px;
+    white-space: nowrap;
+  }
+  .step-item.active .step-label { color: #4f6ef7; font-weight: 600; }
+  .step-item.done .step-label { color: #4f6ef7; }
+
+  /* 卡片 */
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  }
+  .card-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: #1a1a2e;
+  }
+
+  /* 上传区域 */
+  .upload-zone {
+    border: 2px dashed #c8cfe8;
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #f8f9ff;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: #4f6ef7;
+    background: #eef1ff;
+  }
+  .upload-icon { font-size: 40px; margin-bottom: 12px; }
+  .upload-title { font-size: 15px; font-weight: 500; color: #3a3f5c; }
+  .upload-sub { font-size: 12px; color: #9aa0bc; margin-top: 6px; }
+
+  .upload-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: #fffbec;
+    border: 1px solid #ffe48a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: #8a6800;
+  }
+
+  /* OCR结果 */
+  .ocr-result {
+    background: #f8f9ff;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .ocr-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eef0f8;
+    font-size: 14px;
+  }
+  .ocr-row:last-child { border-bottom: none; }
+  .ocr-label { color: #8a8fa8; width: 80px; flex-shrink: 0; }
+  .ocr-value { color: #1a1a2e; font-weight: 500; }
+  .ocr-value.amount { color: #e05c2a; font-size: 16px; font-weight: 700; }
+  .ocr-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: #fff5f5;
+    border: 1px solid #ffd0d0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #c0392b;
+    margin-bottom: 20px;
+  }
+
+  /* 认领 */
+  .claim-block {
+    background: #f8f9ff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .claim-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+  .claim-label { color: #8a8fa8; width: 80px; flex-shrink: 0; }
+  .claim-value { color: #1a1a2e; font-weight: 500; }
+  .claim-value .tag {
+    display: inline-block;
+    background: #eef1ff;
+    color: #4f6ef7;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    margin-left: 6px;
+  }
+
+  /* 拆分输入 */
+  .split-banner {
+    background: #fff8ec;
+    border: 1px solid #ffdc8a;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #7a5200;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .split-inputs { margin-bottom: 16px; }
+  .split-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .split-type-label {
+    width: 90px;
+    font-size: 13px;
+    color: #3a3f5c;
+    flex-shrink: 0;
+  }
+  .split-type-label .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+  .dot-single { background: #4f6ef7; }
+  .dot-monthly { background: #aab0cc; }
+
+  .input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    border: 1.5px solid #d0d5e8;
+    border-radius: 8px;
+    padding: 0 12px;
+    height: 40px;
+    background: #fff;
+    transition: border-color 0.2s;
+  }
+  .input-wrap:focus-within { border-color: #4f6ef7; }
+  .input-wrap.error { border-color: #e05c2a; }
+  .currency-sym { color: #8a8fa8; margin-right: 4px; font-size: 13px; }
+  .input-wrap input {
+    border: none; outline: none;
+    font-size: 15px; font-weight: 600;
+    color: #1a1a2e;
+    width: 100%;
+    background: transparent;
+  }
+  .input-tag {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .input-tag.into { background: #eef1ff; color: #4f6ef7; }
+  .input-tag.record { background: #f0f0f5; color: #8a8fa8; }
+
+  /* 进度条 */
+  .progress-wrap {
+    background: #eef0f8;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 4px;
+  }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #8a8fa8;
+    margin-bottom: 8px;
+  }
+  .progress-bar-bg {
+    height: 6px;
+    background: #e0e4ef;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f6ef7, #7c9bff);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+  .progress-bar-fill.complete { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+  .progress-bar-fill.over { background: linear-gradient(90deg, #e05c2a, #c0392b); }
+  .progress-hint {
+    font-size: 12px;
+    margin-top: 6px;
+    text-align: right;
+  }
+  .progress-hint.ok { color: #27ae60; }
+  .progress-hint.error { color: #e05c2a; }
+  .progress-hint.pending { color: #8a8fa8; }
+
+  /* 简单认领（纯单结） */
+  .simple-claim {
+    background: #f0f7ff;
+    border: 1.5px solid #b8d4ff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  .simple-claim .sc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+  }
+  .simple-claim .sc-label { color: #5a7aaa; }
+  .simple-claim .sc-value { font-weight: 600; color: #1a1a2e; }
+  .simple-claim .sc-note { font-size: 12px; color: #4f6ef7; margin-top: 10px; }
+
+  /* 协议查询状态 */
+  .query-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #8a8fa8;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: #f8f9ff;
+    border-radius: 8px;
+  }
+  .query-status.done {
+    color: #27ae60;
+    background: #f0fff8;
+  }
+  .query-spin {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 成功页 */
+  .success-wrap { text-align: center; padding: 12px 0; }
+  .success-icon {
+    width: 72px; height: 72px;
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 32px;
+    box-shadow: 0 8px 24px rgba(46,204,113,0.3);
+  }
+  .success-title { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+  .success-sub { font-size: 13px; color: #8a8fa8; margin-bottom: 24px; }
+  .success-detail {
+    background: #f8f9ff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    text-align: left;
+  }
+  .sd-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+    border-bottom: 1px solid #eef0f8;
+  }
+  .sd-row:last-child { border-bottom: none; }
+  .sd-label { color: #8a8fa8; }
+  .sd-value { font-weight: 600; color: #1a1a2e; }
+  .sd-value.green { color: #27ae60; }
+  .quota-change {
+    background: #f0fff8;
+    border: 1.5px solid #a8f0cb;
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    text-align: left;
+  }
+  .qc-label { font-size: 12px; color: #5a9a78; margin-bottom: 8px; }
+  .qc-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #3a3f5c;
+  }
+  .qc-arrow { color: #27ae60; font-size: 16px; }
+  .qc-new { font-size: 18px; font-weight: 700; color: #27ae60; }
+
+  /* 按钮 */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-ghost {
+    background: #f0f2f8;
+    color: #5a6080;
+  }
+  .btn-ghost:hover { background: #e4e8f5; }
+  .btn-primary {
+    background: linear-gradient(135deg, #4f6ef7, #7c9bff);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(79,110,247,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(79,110,247,0.4); }
+  .btn-primary:disabled {
+    background: #c8cfe8;
+    color: #fff;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-outline {
+    background: #fff;
+    color: #4f6ef7;
+    border: 1.5px solid #4f6ef7;
+  }
+  .btn-outline:hover { background: #eef1ff; }
+
+  /* 动画 */
+  .screen { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 模拟上传进度 */
+  .upload-progress { display: none; }
+  .up-bar-bg {
+    height: 4px;
+    background: #e0e4ef;
+    border-radius: 2px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  .up-bar-fill {
+    height: 100%;
+    background: #4f6ef7;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s;
+  }
+  .up-status { font-size: 12px; color: #8a8fa8; text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>上传发票</h1>
+  <p>供应商配置网站 · 发票管理</p>
+</div>
+
+<!-- 步骤条 -->
+<div class="steps" id="stepsBar">
+  <div class="step-item active" id="s1">
+    <div class="step-dot">1</div>
+    <div class="step-label">上传文件</div>
+  </div>
+  <div class="step-item" id="s2">
+    <div class="step-dot">2</div>
+    <div class="step-label">确认信息</div>
+  </div>
+  <div class="step-item" id="s3">
+    <div class="step-dot">3</div>
+    <div class="step-label">认领</div>
+  </div>
+  <div class="step-item" id="s4">
+    <div class="step-dot">✓</div>
+    <div class="step-label">完成</div>
+  </div>
+</div>
+
+<!-- ========== SCREEN 1: 上传 ========== -->
+<div class="card screen" id="screen1">
+  <div class="card-title">上传发票文件</div>
+
+  <div class="upload-zone" id="uploadZone" onclick="simulateUpload()">
+    <div class="upload-icon">📄</div>
+    <div class="upload-title">点击上传 或 拖拽文件至此</div>
+    <div class="upload-sub">支持 PDF / JPG / PNG · 单次最大 10MB</div>
+  </div>
+
+  <div class="upload-progress" id="uploadProgress">
+    <div class="up-bar-bg"><div class="up-bar-fill" id="upBarFill"></div></div>
+    <div class="up-status" id="upStatus">识别中...</div>
+  </div>
+
+  <div class="upload-hint">
+    <span>⚠️</span>
+    <span>请上传清晰完整的发票图片，模糊或遮挡将导致识别失败，需重新上传。</span>
+  </div>
+</div>
+
+<!-- ========== SCREEN 2: OCR确认 ========== -->
+<div class="card screen" id="screen2" style="display:none">
+  <div class="card-title">请确认发票信息</div>
+
+  <div class="ocr-result">
+    <div class="ocr-row"><span class="ocr-label">发票号码</span><span class="ocr-value">25442000000123456789</span></div>
+    <div class="ocr-row"><span class="ocr-label">开票日期</span><span class="ocr-value">2026-04-01</span></div>
+    <div class="ocr-row"><span class="ocr-label">发票金额</span><span class="ocr-value amount">¥ 1,000,000.00</span></div>
+    <div class="ocr-row"><span class="ocr-label">购买方</span><span class="ocr-value">XX旅行平台有限公司</span></div>
+    <div class="ocr-row"><span class="ocr-label">销售方</span><span class="ocr-value">XX酒店集团有限公司</span></div>
+    <div class="ocr-row"><span class="ocr-label">税号</span><span class="ocr-value">91310000XXXXXXXX</span></div>
+  </div>
+
+  <div class="ocr-warn">
+    <span>⚠️</span>
+    <span>如以上信息与实际发票不符，请返回重新上传清晰图片。系统识别内容以实际发票为准。</span>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="goTo(1)">返回重传</button>
+    <button class="btn btn-primary" onclick="goTo(3)">信息无误，下一步</button>
+  </div>
+</div>
+
+<!-- ========== SCREEN 3: 认领 ========== -->
+<div class="card screen" id="screen3" style="display:none">
+  <div class="card-title">认领发票</div>
+
+  <!-- 系统查询协议状态提示 -->
+  <div class="query-status" id="queryStatus">
+    <span class="query-spin">⟳</span> 正在查询酒店协议...
+  </div>
+
+  <!-- 基本信息 -->
+  <div class="claim-block">
+    <div class="claim-row">
+      <span class="claim-label">归属商家</span>
+      <span class="claim-value">XX酒店集团<span class="tag">自动带出</span></span>
+    </div>
+    <div class="claim-row">
+      <span class="claim-label">发票金额</span>
+      <span class="claim-value" style="color:#e05c2a;font-size:16px;font-weight:700;">¥ 1,000,000.00</span>
+    </div>
+    <div class="claim-row" id="contractTypeRow">
+      <span class="claim-label">合同类型</span>
+      <span class="claim-value" id="contractTypeVal">单结</span>
+    </div>
+  </div>
+
+  <!-- 场景A：仅单结 -->
+  <div id="sceneA">
+    <div class="simple-claim">
+      <div class="sc-row">
+        <span class="sc-label">单结认领金额</span>
+        <span class="sc-value" style="color:#4f6ef7;">¥ 1,000,000.00</span>
+      </div>
+      <div class="sc-note">✓ 发票将全额计入单结发票额度池</div>
+    </div>
+  </div>
+
+  <!-- 场景B：单结+月结 -->
+  <div id="sceneB" style="display:none">
+    <div class="split-banner">
+      <span>⚠️</span>
+      <span>检测到您的合同包含单结和月结两种结算方式，请填写各结算类型对应金额，合计须等于发票总额。</span>
+    </div>
+    <div class="split-inputs">
+      <div class="split-row">
+        <div class="split-type-label"><span class="dot dot-single"></span>单结金额</div>
+        <div class="input-wrap" id="inputWrapA">
+          <span class="currency-sym">¥</span>
+          <input type="number" id="amtSingle" placeholder="0.00" oninput="calcSplit()" min="0" max="1000000" step="0.01">
+        </div>
+        <span class="input-tag into">计入额度池</span>
+      </div>
+      <div class="split-row">
+        <div class="split-type-label"><span class="dot dot-monthly"></span>月结金额</div>
+        <div class="input-wrap" id="inputWrapB">
+          <span class="currency-sym">¥</span>
+          <input type="number" id="amtMonthly" placeholder="0.00" oninput="calcSplit()" min="0" max="1000000" step="0.01">
+        </div>
+        <span class="input-tag record">仅记录</span>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-header">
+        <span>已分配</span>
+        <span id="progressLabel">¥ 0 / ¥ 1,000,000</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <div class="progress-hint pending" id="progressHint">请填写拆分金额</div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="goTo(2)">上一步</button>
+    <button class="btn btn-primary" id="btnSubmit" onclick="goTo(4)">确认提交</button>
+  </div>
+</div>
+
+<!-- ========== SCREEN 4: 成功 ========== -->
+<div class="card screen" id="screen4" style="display:none">
+  <div class="success-wrap">
+    <div class="success-icon">✓</div>
+    <div class="success-title">发票上传成功</div>
+    <div class="success-sub">发票已入池，额度已更新</div>
+  </div>
+
+  <div class="success-detail">
+    <div class="sd-row"><span class="sd-label">发票号码</span><span class="sd-value">25442000000123456789</span></div>
+    <div class="sd-row"><span class="sd-label">开票日期</span><span class="sd-value">2026-04-01</span></div>
+    <div class="sd-row"><span class="sd-label">发票面额</span><span class="sd-value">¥ 1,000,000.00</span></div>
+    <div class="sd-row"><span class="sd-label">单结认领金额</span><span class="sd-value green" id="successSingleAmt">¥ 1,000,000.00</span></div>
+    <div class="sd-row" id="successMonthlyRow" style="display:none"><span class="sd-label">月结记录金额</span><span class="sd-value" id="successMonthlyAmt">¥ 0.00</span></div>
+  </div>
+
+  <div class="quota-change">
+    <div class="qc-label">单结发票可用额度变化</div>
+    <div class="qc-bar">
+      <span id="qcOld">¥ 250,000</span>
+      <span class="qc-arrow">→</span>
+      <span class="qc-new" id="qcNew">¥ 1,250,000</span>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-outline" onclick="reset()">继续上传</button>
+    <button class="btn btn-primary">查看发票记录</button>
+  </div>
+</div>
+
+<script>
+  let currentScenario = 1;
+  const TOTAL = 1000000;
+  const OLD_QUOTA = 250000;
+
+  // 模拟：true=仅单结，false=单结+月结
+  // 实际产品中由后端查询酒店协议返回
+  const MOCK_SINGLE_ONLY = false; // 改这里可切换演示场景
+
+  function goTo(step) {
+    [1,2,3,4].forEach(i => {
+      document.getElementById('screen'+i).style.display = 'none';
+    });
+    document.getElementById('screen'+step).style.display = 'block';
+    updateSteps(step);
+
+    if (step === 3) {
+      runContractQuery();
+    }
+    if (step === 4) {
+      updateSuccessPage();
+    }
+  }
+
+  function runContractQuery() {
+    const qs = document.getElementById('queryStatus');
+    qs.className = 'query-status';
+    qs.innerHTML = '<span class="query-spin">⟳</span> 正在查询酒店协议...';
+    document.getElementById('sceneA').style.display = 'none';
+    document.getElementById('sceneB').style.display = 'none';
+    document.getElementById('btnSubmit').disabled = true;
+
+    setTimeout(() => {
+      if (MOCK_SINGLE_ONLY) {
+        qs.className = 'query-status done';
+        qs.innerHTML = '✓ 查询完成：该商家仅有单结合同';
+        switchScenario(1);
+      } else {
+        qs.className = 'query-status done';
+        qs.innerHTML = '✓ 查询完成：该商家存在单结 + 月结合同，请填写拆分金额';
+        switchScenario(2);
+      }
+    }, 1200);
+  }
+
+  function updateSteps(current) {
+    [1,2,3,4].forEach(i => {
+      const el = document.getElementById('s'+i);
+      el.className = 'step-item';
+      if (i < current) el.classList.add('done');
+      if (i === current) el.classList.add('active');
+    });
+  }
+
+  function simulateUpload() {
+    const zone = document.getElementById('uploadZone');
+    const prog = document.getElementById('uploadProgress');
+    const fill = document.getElementById('upBarFill');
+    const status = document.getElementById('upStatus');
+
+    zone.style.display = 'none';
+    prog.style.display = 'block';
+
+    let pct = 0;
+    const msgs = ['上传中...', '上传中...', 'OCR识别中...', 'OCR识别中...', '查验完成 ✓'];
+    const interval = setInterval(() => {
+      pct += 20;
+      fill.style.width = pct + '%';
+      status.textContent = msgs[Math.floor(pct/20) - 1] || 'OCR识别中...';
+      if (pct >= 100) {
+        clearInterval(interval);
+        setTimeout(() => goTo(2), 300);
+      }
+    }, 350);
+  }
+
+  function switchScenario(n) {
+    currentScenario = n;
+    document.getElementById('sceneA').style.display = n===1 ? 'block' : 'none';
+    document.getElementById('sceneB').style.display = n===2 ? 'block' : 'none';
+    document.getElementById('contractTypeVal').textContent = n===1 ? '单结' : '单结 + 月结';
+
+    const btn = document.getElementById('btnSubmit');
+    if (n === 1) {
+      btn.disabled = false;
+    } else {
+      btn.disabled = true;
+      document.getElementById('amtSingle').value = '';
+      document.getElementById('amtMonthly').value = '';
+      calcSplit();
+    }
+  }
+
+  function calcSplit() {
+    const sVal = parseFloat(document.getElementById('amtSingle').value) || 0;
+    const mVal = parseFloat(document.getElementById('amtMonthly').value) || 0;
+    const filled = sVal + mVal;
+    const pct = Math.min((filled / TOTAL) * 100, 110);
+
+    const fill = document.getElementById('progressFill');
+    const label = document.getElementById('progressLabel');
+    const hint = document.getElementById('progressHint');
+    const btn = document.getElementById('btnSubmit');
+    const wA = document.getElementById('inputWrapA');
+    const wB = document.getElementById('inputWrapB');
+
+    label.textContent = '¥ ' + filled.toLocaleString() + ' / ¥ 1,000,000';
+    fill.style.width = Math.min(pct, 100) + '%';
+
+    wA.classList.remove('error');
+    wB.classList.remove('error');
+
+    if (filled === 0) {
+      fill.className = 'progress-bar-fill';
+      hint.className = 'progress-hint pending';
+      hint.textContent = '请填写拆分金额';
+      btn.disabled = true;
+    } else if (filled < TOTAL) {
+      fill.className = 'progress-bar-fill';
+      hint.className = 'progress-hint pending';
+      hint.textContent = '还差 ¥' + (TOTAL - filled).toLocaleString() + ' 未分配';
+      btn.disabled = true;
+    } else if (filled === TOTAL) {
+      fill.className = 'progress-bar-fill complete';
+      hint.className = 'progress-hint ok';
+      hint.textContent = '✓ 金额已填满，可以提交';
+      btn.disabled = false;
+    } else {
+      fill.className = 'progress-bar-fill over';
+      hint.className = 'progress-hint error';
+      hint.textContent = '已超出 ¥' + (filled - TOTAL).toLocaleString() + '，请修正';
+      btn.disabled = true;
+      wA.classList.add('error');
+      wB.classList.add('error');
+    }
+  }
+
+  function updateSuccessPage() {
+    let singleAmt, monthlyAmt;
+    if (currentScenario === 1) {
+      singleAmt = TOTAL;
+      monthlyAmt = 0;
+      document.getElementById('successMonthlyRow').style.display = 'none';
+    } else {
+      singleAmt = parseFloat(document.getElementById('amtSingle').value) || 0;
+      monthlyAmt = parseFloat(document.getElementById('amtMonthly').value) || 0;
+      document.getElementById('successMonthlyRow').style.display = 'flex';
+      document.getElementById('successMonthlyAmt').textContent = '¥ ' + monthlyAmt.toLocaleString('zh-CN', {minimumFractionDigits:2});
+    }
+    document.getElementById('successSingleAmt').textContent = '¥ ' + singleAmt.toLocaleString('zh-CN', {minimumFractionDigits:2});
+    const newQuota = OLD_QUOTA + singleAmt;
+    document.getElementById('qcOld').textContent = '¥ ' + OLD_QUOTA.toLocaleString();
+    document.getElementById('qcNew').textContent = '¥ ' + newQuota.toLocaleString();
+  }
+
+  function reset() {
+    document.getElementById('uploadZone').style.display = 'block';
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('upBarFill').style.width = '0%';
+    currentScenario = 1;
+    goTo(1);
+  }
+</script>
+</body>
+</html>
