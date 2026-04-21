@@ -454,6 +454,131 @@
     transition: width 0.1s;
   }
   .up-status { font-size: 12px; color: #8a8fa8; text-align: center; margin-top: 8px; }
+
+  /* 追票核销清单 */
+  .chase-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1.5px solid #eef0f8;
+  }
+  .chase-bill {
+    border: 1.5px solid #e0e4ef;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fff;
+  }
+  .chase-bill:hover { border-color: #4f6ef7; background: #f8f9ff; }
+  .chase-bill-sel {
+    border-color: #4f6ef7;
+    background: #f0f3ff;
+    box-shadow: 0 0 0 3px rgba(79,110,247,0.12);
+  }
+  .cb-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .cb-left { display: flex; align-items: flex-start; gap: 10px; }
+  .cb-toggle {
+    font-size: 14px;
+    color: #8a8fa8;
+    width: 20px;
+    flex-shrink: 0;
+    padding-top: 2px;
+    user-select: none;
+  }
+  .cb-period { font-size: 14px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+  .cb-meta { font-size: 11px; color: #8a8fa8; }
+  .cb-right { text-align: right; flex-shrink: 0; }
+  .cb-amounts { font-size: 12px; color: #5a6080; margin-bottom: 4px; }
+  .cb-bar {
+    width: 120px;
+    height: 4px;
+    background: #e0e4ef;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+    margin-left: auto;
+  }
+  .cb-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f6ef7, #7c9bff);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .cb-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .cb-sel-mark {
+    display: block;
+    font-size: 11px;
+    color: #4f6ef7;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .cb-items {
+    margin-top: 12px;
+    border-top: 1px solid #eef0f8;
+    padding-top: 10px;
+  }
+  .cb-items-hd {
+    font-size: 12px;
+    color: #8a8fa8;
+    margin-bottom: 8px;
+  }
+  .cb-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed #eef0f8;
+    gap: 12px;
+  }
+  .cb-item:last-child { border-bottom: none; }
+  .cb-item-left { flex: 1; }
+  .cb-item-order { font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 3px; }
+  .cb-item-detail { font-size: 11px; color: #8a8fa8; }
+  .cb-item-right { text-align: right; flex-shrink: 0; }
+  .cb-item-amt { display: block; font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 3px; }
+  .cb-item-st { font-size: 11px; font-weight: 500; }
+
+  /* 核销确认栏 */
+  .chase-confirm-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #eef1ff;
+    border: 1.5px solid #b8caff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    gap: 12px;
+  }
+  .btn-sm {
+    padding: 8px 16px !important;
+    font-size: 13px !important;
+    flex: none !important;
+    border-radius: 8px !important;
+  }
+  .chase-ok-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f0fff8;
+    border: 1.5px solid #a8f0cb;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #27ae60;
+  }
 </style>
 </head>
 <body>
@@ -623,28 +748,159 @@
   </div>
 
   <div class="quota-change">
-    <div class="qc-label">单结发票可用额度变化</div>
+    <div class="qc-label" id="qcLabel">授信可用额度变化</div>
     <div class="qc-bar">
-      <span id="qcOld">¥ 250,000</span>
+      <span id="qcOld">¥ 200,000</span>
       <span class="qc-arrow">→</span>
-      <span class="qc-new" id="qcNew">¥ 1,250,000</span>
+      <span class="qc-new" id="qcNew">¥ 1,200,000</span>
     </div>
   </div>
 
-  <div class="btn-row">
+  <!-- 追票核销清单（先款后票上传成功后内嵌） -->
+  <div id="chaseSection" style="margin-top:16px">
+    <div class="chase-title">选择账期进行核销</div>
+    <div id="chaseList"></div>
+    <div id="chaseConfirmBar" style="display:none" class="chase-confirm-bar">
+      <div id="chaseConfirmText" style="font-size:13px"></div>
+      <button class="btn btn-primary btn-sm" onclick="doReconcile()">确认核销</button>
+    </div>
+    <div id="chaseSuccess" style="display:none" class="chase-ok-box">
+      <span>✓</span> <span id="chaseSuccessText"></span>
+    </div>
+  </div>
+
+  <div class="btn-row" style="margin-top:16px">
     <button class="btn btn-outline" onclick="reset()">继续上传</button>
-    <button class="btn btn-primary">查看发票记录</button>
   </div>
 </div>
 
 <script>
   let currentScenario = 1;
   const TOTAL = 1000000;
-  const OLD_QUOTA = 250000;
+  const OLD_QUOTA = 200000;
 
   // 模拟：true=仅单结，false=单结+月结
-  // 实际产品中由后端查询酒店协议返回
-  const MOCK_SINGLE_ONLY = false; // 改这里可切换演示场景
+  const MOCK_SINGLE_ONLY = false;
+
+  // 追票清单模拟数据
+  const CHASE_BILLS = [
+    {
+      id: 'BILL-202603', period: '2026年03月账期', due: '2026-04-30',
+      total: 1280000, matched: 0,
+      items: [
+        { order: 'PO-0318-001', guest: '张明', checkin: '2026-03-18', checkout: '2026-03-20', amt: 320000, st: '待匹配' },
+        { order: 'PO-0322-002', guest: '李雪', checkin: '2026-03-22', checkout: '2026-03-25', amt: 480000, st: '待匹配' },
+        { order: 'PO-0328-003', guest: '王磊', checkin: '2026-03-28', checkout: '2026-03-30', amt: 480000, st: '待匹配' },
+      ]
+    },
+    {
+      id: 'BILL-202604', period: '2026年04月账期', due: '2026-05-31',
+      total: 860000, matched: 320000,
+      items: [
+        { order: 'PO-0402-001', guest: '赵芳', checkin: '2026-04-02', checkout: '2026-04-04', amt: 320000, st: '已核销' },
+        { order: 'PO-0408-002', guest: '陈亮', checkin: '2026-04-08', checkout: '2026-04-10', amt: 260000, st: '待匹配' },
+        { order: 'PO-0415-003', guest: '刘洋', checkin: '2026-04-15', checkout: '2026-04-18', amt: 280000, st: '待匹配' },
+      ]
+    },
+  ];
+
+  let selectedBillIds = new Set();
+  let chaseExpanded = {};
+
+  function fm(n) { return '¥ ' + Number(n).toLocaleString('zh-CN', { minimumFractionDigits: 0 }); }
+
+  function renderChaseList() {
+    const list = document.getElementById('chaseList');
+    if (!list) return;
+    list.innerHTML = CHASE_BILLS.map(b => {
+      const pct = b.total > 0 ? Math.round(b.matched / b.total * 100) : 0;
+      const remaining = b.total - b.matched;
+      const sel = selectedBillIds.has(b.id);
+      const exp = chaseExpanded[b.id];
+      const stLabel = b.matched >= b.total ? '已核销' : b.matched > 0 ? '部分匹配' : '待匹配';
+      const stColor = { '已核销': '#389e0d', '部分匹配': '#d48806', '待匹配': '#1677ff' }[stLabel];
+
+      let html = `<div class="chase-bill${sel ? ' chase-bill-sel' : ''}" onclick="selectBill('${b.id}')">
+        <div class="cb-header">
+          <div class="cb-left">
+            <span class="cb-toggle" onclick="event.stopPropagation();toggleChase('${b.id}')">${exp ? '▾' : '▸'}</span>
+            <div>
+              <div class="cb-period">${b.period}</div>
+              <div class="cb-meta">${b.id} · 截止 ${b.due} · ${b.items.length} 笔订单</div>
+            </div>
+          </div>
+          <div class="cb-right">
+            <div class="cb-amounts">${fm(b.matched)} / ${fm(b.total)}</div>
+            <div class="cb-bar"><div class="cb-bar-fill" style="width:${pct}%"></div></div>
+            <span class="cb-badge" style="color:${stColor};background:${stColor}18">${stLabel}</span>
+            ${sel ? '<span class="cb-sel-mark">✓ 已选择</span>' : ''}
+          </div>
+        </div>`;
+
+      if (exp) {
+        html += `<div class="cb-items">
+          <div class="cb-items-hd">订单明细（待追票余额 ${fm(remaining)}）</div>`;
+        b.items.forEach(it => {
+          const itColor = it.st === '已核销' ? '#389e0d' : '#1677ff';
+          html += `<div class="cb-item">
+            <div class="cb-item-left">
+              <div class="cb-item-order">${it.order}</div>
+              <div class="cb-item-detail">旅客：<strong>${it.guest}</strong> · 入住 ${it.checkin} → 离店 ${it.checkout}</div>
+            </div>
+            <div class="cb-item-right">
+              <span class="cb-item-amt">${fm(it.amt)}</span>
+              <span class="cb-item-st" style="color:${itColor}">${it.st}</span>
+            </div>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+      return html;
+    }).join('');
+  }
+
+  function selectBill(id) {
+    if (selectedBillIds.has(id)) {
+      selectedBillIds.delete(id);
+    } else {
+      selectedBillIds.add(id);
+    }
+    renderChaseList();
+    const bar = document.getElementById('chaseConfirmBar');
+    const text = document.getElementById('chaseConfirmText');
+    if (selectedBillIds.size > 0) {
+      const singleAmt = parseFloat(document.getElementById('successSingleAmt').textContent.replace(/[^0-9.]/g,'')) || TOTAL;
+      const periods = CHASE_BILLS.filter(b => selectedBillIds.has(b.id)).map(b => b.period).join('、');
+      const count = selectedBillIds.size;
+      text.innerHTML = `将 <strong>${fm(singleAmt)}</strong> 核销至 <strong>${periods}</strong>（共 ${count} 个账期）`;
+      bar.style.display = 'flex';
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  function toggleChase(id) {
+    chaseExpanded[id] = !chaseExpanded[id];
+    renderChaseList();
+  }
+
+  function doReconcile() {
+    if (selectedBillIds.size === 0) return;
+    const singleAmt = parseFloat(document.getElementById('successSingleAmt').textContent.replace(/[^0-9.]/g,'')) || TOTAL;
+    const selectedBills = CHASE_BILLS.filter(b => selectedBillIds.has(b.id));
+    selectedBills.forEach(b => {
+      b.matched += singleAmt;
+      b.items.forEach(it => { if (it.st === '待匹配') it.st = '已核销'; });
+    });
+    const periods = selectedBills.map(b => b.period).join('、');
+    document.getElementById('chaseConfirmBar').style.display = 'none';
+    document.getElementById('chaseSection').style.display = 'none';
+    const ok = document.getElementById('chaseSuccess');
+    document.getElementById('chaseSuccessText').textContent = `已核销至 ${periods}，释放授信额度 ${fm(singleAmt)}`;
+    ok.style.display = 'flex';
+    selectedBillIds.clear();
+  }
 
   function goTo(step) {
     [1,2,3,4].forEach(i => {
@@ -790,12 +1046,23 @@
     const newQuota = OLD_QUOTA + singleAmt;
     document.getElementById('qcOld').textContent = '¥ ' + OLD_QUOTA.toLocaleString();
     document.getElementById('qcNew').textContent = '¥ ' + newQuota.toLocaleString();
+
+    // 重置并渲染追票核销清单
+    selectedBillIds = new Set();
+    chaseExpanded = {};
+    document.getElementById('chaseSection').style.display = 'block';
+    document.getElementById('chaseConfirmBar').style.display = 'none';
+    document.getElementById('chaseSuccess').style.display = 'none';
+    renderChaseList();
   }
 
   function reset() {
     document.getElementById('uploadZone').style.display = 'block';
     document.getElementById('uploadProgress').style.display = 'none';
     document.getElementById('upBarFill').style.width = '0%';
+    // 重置追票清单数据
+    CHASE_BILLS.forEach(b => { b.matched = 0; b.items.forEach(it => { it.st = '待匹配'; }); });
+    CHASE_BILLS[1].matched = 320000; CHASE_BILLS[1].items[0].st = '已核销'; // 还原初始演示状态
     currentScenario = 1;
     goTo(1);
   }
