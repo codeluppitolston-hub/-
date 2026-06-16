@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>酒店节省报告维度配置 · 脱敏 Demo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family:"Microsoft YaHei","PingFang SC","Helvetica Neue",Arial,sans-serif; color:#303133; background:#f0f2f5; font-size:13px; }
+  .app { max-width:1100px; margin:0 auto; }
+  /* 顶部栏 */
+  .topbar { height:48px; background:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid #eee; }
+  .logo { display:flex; align-items:baseline; gap:4px; }
+  .logo .cn { font-size:22px; font-weight:700; color:#1e96f2; letter-spacing:2px; }
+  .logo .en { font-size:12px; color:#1e96f2; font-weight:600; }
+  .topbar-right { display:flex; align-items:center; gap:22px; color:#606266; }
+  .topbar-right .avatar { width:18px;height:18px;border-radius:50%;background:#1e96f2;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;margin-right:5px; }
+  /* 导航 */
+  .navbar { height:44px; background:#1e96f2; display:flex; align-items:center; padding:0 12px; }
+  .navbar a { color:#fff; text-decoration:none; padding:0 22px; line-height:44px; font-size:15px; opacity:.92; }
+  .navbar a.active { background:rgba(255,255,255,.18); font-weight:600; opacity:1; }
+  /* 主体 */
+  .tab-title { background:#fff; margin:12px 16px 0; padding:10px 16px; color:#303133; border-bottom:1px solid #f0f0f0; border-radius:4px 4px 0 0; }
+  .tab-title .crumb { color:#909399; }
+  .panel { background:#fff; margin:0 16px 16px; padding:18px 22px 28px; border-radius:0 0 4px 4px; }
+  .callout { background:#fff7e6; border:1px solid #ffe7ba; border-left:3px solid #fa8c16; border-radius:4px; padding:10px 14px; color:#8a6d3b; font-size:12px; line-height:1.7; margin:0 0 20px; }
+  .callout b { color:#d46b08; }
+  .new-tag { display:inline-block; background:#fff1f0; color:#f5222d; border:1px solid #ffccc7; font-size:11px; line-height:1; padding:2px 5px; border-radius:3px; margin-left:6px; vertical-align:middle; }
+  /* 表单 */
+  .form-card { max-width:760px; }
+  .field { display:flex; align-items:flex-start; padding:16px 0; border-bottom:1px dashed #ebeef5; }
+  .field:last-of-type { border-bottom:none; }
+  .field > .label { width:200px; flex-shrink:0; color:#606266; padding-top:7px; }
+  .field > .label .req { color:#f5222d; margin-right:3px; }
+  .field > .ctrl-wrap { flex:1; min-width:0; }
+  /* 单选按钮组（分段） */
+  .seg { display:inline-flex; }
+  .seg span { padding:7px 22px; border:1px solid #dcdfe6; cursor:pointer; color:#606266; user-select:none; }
+  .seg span:first-child { border-radius:4px 0 0 4px; }
+  .seg span:last-child { border-radius:0 4px 4px 0; border-left:none; }
+  .seg span.active { background:#1e96f2; color:#fff; border-color:#1e96f2; }
+  /* 下拉选择 */
+  select.sel { height:34px; min-width:300px; border:1px solid #dcdfe6; border-radius:4px; padding:0 10px; color:#303133; background:#fff; font-size:13px; outline:none; cursor:pointer; }
+  select.sel:focus { border-color:#1e96f2; }
+  /* 子字段（条件出现） */
+  .subfield { margin-top:14px; padding:14px 16px; background:#f7faff; border:1px solid #e3eefb; border-radius:6px; }
+  .subfield .sub-label { color:#606266; margin-bottom:9px; display:block; }
+  .subfield .sub-label .new-tag { margin-left:4px; }
+  .hint { color:#909399; font-size:12px; margin-top:8px; line-height:1.6; }
+  .hint b { color:#1e96f2; }
+  /* 多选 chip 组 */
+  .chk-group { display:flex; flex-wrap:wrap; gap:10px 12px; }
+  .chk { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border:1px solid #dcdfe6; border-radius:4px; cursor:pointer; user-select:none; background:#fff; color:#606266; }
+  .chk input { cursor:pointer; margin:0; }
+  .chk.checked { border-color:#1e96f2; color:#1e96f2; background:#ecf5ff; }
+  .divider-sub { height:1px; background:#e3eefb; margin:16px 0; }
+  .hidden { display:none !important; }
+  /* 计算规则预览 */
+  .preview { margin:6px 0 0 200px; max-width:560px; background:#f3f9ff; border:1px solid #d6e8fb; border-radius:6px; padding:12px 14px; color:#5a6a7a; font-size:12px; line-height:1.85; }
+  .preview h4 { color:#1e96f2; font-size:13px; margin-bottom:6px; }
+  .preview code { background:#eef4fb; color:#1e60b0; padding:1px 5px; border-radius:3px; font-family:Consolas,Menlo,monospace; }
+  /* 按钮 */
+  .actions { margin:26px 0 0 200px; display:flex; gap:12px; }
+  .btn { height:34px; padding:0 26px; border-radius:4px; border:none; cursor:pointer; font-size:13px; }
+  .btn-primary { background:#1e96f2; color:#fff; }
+  .btn-primary:hover { background:#1684db; }
+  .btn-default { background:#f4f4f5; color:#606266; border:1px solid #dcdfe6; }
+  .btn-default:hover { color:#1e96f2; border-color:#bcdcfb; }
+  /* 保存提示 */
+  .toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#f0f9eb; border:1px solid #c2e7b0; color:#67c23a; padding:10px 22px; border-radius:4px; font-size:13px; box-shadow:0 4px 16px rgba(0,0,0,.1); opacity:0; transition:opacity .25s; pointer-events:none; z-index:99; }
+  .toast.show { opacity:1; }
+  .reqbox { margin:24px 0 0; padding:12px 14px; background:#f6faff; border:1px solid #d6e8fb; border-radius:6px; color:#5a6a7a; font-size:12px; line-height:1.85; max-width:760px; }
+  .reqbox h4 { color:#1e96f2; font-size:13px; margin-bottom:6px; }
+</style>
+</head>
+<body>
+  <div class="app">
+  <div class="topbar">
+    <div class="logo"><span class="cn">差旅壹号</span><span class="en">YiHao</span></div>
+    <div class="topbar-right">
+      <span>示例企业集团有限公司 ∨</span>
+      <span><span class="avatar">示</span>示例用户 ∨</span>
+      <span>退出</span>
+    </div>
+  </div>
+  <div class="navbar">
+    <a href="index.html">差旅报告</a>
+    <a href="#">管理中心</a>
+    <a href="#" class="active">表单引擎</a>
+  </div>
+
+  <div class="tab-title"><span class="crumb">表单引擎 / 国内酒店 / </span>酒店节省报告维度配置</div>
+  <div class="panel">
+    <div class="callout">
+      🛠️ <b>酒店节省报告维度配置</b>（需求12② 调整后方案）：节约报告酒店节省金额的<b>统计口径由此处统一配置</b>，报告内只呈现一个最终节省金额，不再向企业并列展示双口径。配置即时生效，无需重算清洗（各会员档节省金额已在清洗期全部算好落库）。
+    </div>
+
+    <div class="form-card">
+      <!-- 字段1：客户类型 -->
+      <div class="field">
+        <div class="label"><span class="req">*</span>客户类型</div>
+        <div class="ctrl-wrap">
+          <div class="seg" id="custType">
+            <span data-v="group" class="active">集团</span>
+            <span data-v="corp">企业</span>
+          </div>
+
+          <!-- 子字段：集团 -->
+          <div class="subfield" id="sub-group">
+            <span class="sub-label"><span class="req" style="color:#f5222d">*</span>选择集团</span>
+            <select class="sel" id="groupSel">
+              <option>示例企业集团有限公司</option>
+              <option>四川示例控股集团</option>
+              <option>中国示例商旅集团</option>
+            </select>
+            <div class="hint">选择集团后，该配置对<b>集团下全部成员企业</b>统一生效。</div>
+          </div>
+
+          <!-- 子字段：企业 -->
+          <div class="subfield hidden" id="sub-corp">
+            <span class="sub-label"><span class="req" style="color:#f5222d">*</span>关联企业档案</span>
+            <select class="sel" id="corpSel">
+              <option>四川示例企业有限公司</option>
+              <option>上海示例科技有限公司</option>
+              <option>北京示例商旅服务有限公司</option>
+              <option>深圳示例供应链有限公司</option>
+            </select>
+            <div class="hint">关联到具体<b>企业档案</b>，该配置仅对所选企业生效。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 字段2：酒店节省金额统计口径 -->
+      <div class="field">
+        <div class="label"><span class="req">*</span>酒店节省金额统计口径</div>
+        <div class="ctrl-wrap">
+          <div class="seg" id="caliber">
+            <span data-v="acc" class="active">会计口径</span>
+            <span data-v="market">市场口径</span>
+          </div>
+
+          <!-- 会计口径说明 -->
+          <div class="hint" id="acc-note">按 <b>协议价 / 官网原价</b> 对比计算节省金额（沿用现状逻辑），取数字段 <b>HotelSavingMoney</b>。</div>
+
+          <!-- 子字段：市场口径 → 先选酒店三级分类，再选会员类型 -->
+          <div class="subfield hidden" id="sub-market">
+            <!-- 酒店三级分类（多选）-->
+            <span class="sub-label"><span class="req" style="color:#f5222d">*</span>酒店三级分类 <span class="new-tag">需求12② 新增</span></span>
+            <div class="chk-group" id="cat3Group">
+              <label class="chk checked" data-v="group"><input type="checkbox" checked>集团协议</label>
+              <label class="chk checked" data-v="single"><input type="checkbox" checked>单体协议</label>
+              <label class="chk checked" data-v="member"><input type="checkbox" checked>会员酒店</label>
+              <label class="chk checked" data-v="proxy"><input type="checkbox" checked>酒店代购</label>
+            </div>
+            <div class="hint">选择市场口径后，<b>先配置纳入市场口径节省统计的酒店三级分类</b>（可多选）：<b>集团协议 / 单体协议 / 会员酒店 / 酒店代购</b>。仅所选分类的订单参与市场口径节省金额计算。</div>
+
+            <div class="divider-sub"></div>
+
+            <span class="sub-label"><span class="req" style="color:#f5222d">*</span>选择会员类型 <span class="new-tag">需求12② 新增</span></span>
+            <select class="sel" id="memberSel">
+              <option value="Common">普通会员</option>
+              <option value="Silver">白银会员</option>
+              <option value="Gold">黄金会员</option>
+              <option value="Platinum">铂金会员</option>
+            </select>
+            <div class="hint">按所选<b>会员等级的可见价</b> vs 成交价 计算节省金额；取对应字段 <b><span id="memberField">HotelMarketSavingMoney_Common</span></b>。会员等级可扩展。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 计算规则预览 -->
+      <div class="preview" id="preview">
+        <h4>📐 当前配置 · 节省金额计算规则</h4>
+        <div id="previewBody"></div>
+      </div>
+
+      <!-- 操作 -->
+      <div class="actions">
+        <button class="btn btn-primary" id="saveBtn">保存配置</button>
+        <button class="btn btn-default" id="resetBtn">重置</button>
+      </div>
+    </div>
+
+    <div class="reqbox">
+      <h4>需求说明（需求12② · 问题ID 2600698 · 调整）</h4>
+      取消报告内「会计 / 市场」双口径并列展示（对企业解释成本高、易引发对账争议）。改为本配置页统一控制：选「会计口径」按现状算；选「市场口径」<b>先配置酒店三级分类</b>（集团协议 / 单体协议 / 会员酒店 / 酒店代购，<b>可多选</b>，仅所选分类订单参与市场口径节省统计），<b>再选会员类型</b>（普通 / 白银 / 黄金…）。酒店消费明细表、酒店差旅报告基线表按会员档新增 <code style="background:#eef4fb;color:#1e60b0;padding:1px 4px;border-radius:3px">HotelMarketSavingMoney_*</code> 字段，清洗期各档都算好落库，报告读本配置取对应字段、不实时算。
+    </div>
+  </div>
+  </div>
+
+  <div class="toast" id="toast">✓ 配置已保存（Demo 仅演示，不落库）</div>
+
+<script>
+(function(){
+  "use strict";
+  var custType='group', caliber='acc';
+  var memberLabel={Common:'普通会员',Silver:'白银会员',Gold:'黄金会员',Platinum:'铂金会员'};
+  var cat3Label={group:'集团协议',single:'单体协议',member:'会员酒店',proxy:'酒店代购'};
+
+  function $(id){ return document.getElementById(id); }
+
+  function bindSeg(wrapId, onPick){
+    var wrap=$(wrapId);
+    wrap.querySelectorAll('span').forEach(function(s){
+      s.addEventListener('click',function(){
+        wrap.querySelectorAll('span').forEach(function(x){x.classList.remove('active');});
+        s.classList.add('active');
+        onPick(s.getAttribute('data-v'));
+      });
+    });
+  }
+
+  function renderCust(){
+    $('sub-group').classList.toggle('hidden', custType!=='group');
+    $('sub-corp').classList.toggle('hidden', custType!=='corp');
+  }
+  function renderCaliber(){
+    var isMarket=(caliber==='market');
+    $('sub-market').classList.toggle('hidden', !isMarket);
+    $('acc-note').classList.toggle('hidden', isMarket);
+  }
+  function renderMemberField(){
+    var v=$('memberSel').value;
+    $('memberField').textContent='HotelMarketSavingMoney_'+v;
+  }
+  function getCat3(){
+    var sel=[];
+    $('cat3Group').querySelectorAll('.chk').forEach(function(c){
+      if(c.querySelector('input').checked) sel.push(c.getAttribute('data-v'));
+    });
+    return sel;
+  }
+  function bindChkGroup(){
+    $('cat3Group').querySelectorAll('.chk').forEach(function(c){
+      var box=c.querySelector('input');
+      box.addEventListener('change',function(){
+        c.classList.toggle('checked', box.checked);
+        renderPreview();
+      });
+    });
+  }
+  function renderPreview(){
+    var who = (custType==='group')
+      ? ('集团「'+$('groupSel').value+'」下全部成员企业')
+      : ('企业「'+$('corpSel').value+'」');
+    var rule, field, cat3Line='';
+    if(caliber==='acc'){
+      rule='会计口径 —— 按 协议价 / 官网原价 对比计算';
+      field='HotelSavingMoney';
+    } else {
+      var m=$('memberSel').value;
+      rule='市场口径 —— 按「'+memberLabel[m]+'」可见价 vs 成交价 计算';
+      field='HotelMarketSavingMoney_'+m;
+      var cats=getCat3().map(function(v){return cat3Label[v];});
+      var catStr=cats.length ? cats.join(' / ') : '<span style="color:#f5222d">未选择（节省金额计为 0）</span>';
+      cat3Line='适用酒店三级分类：<b>'+catStr+'</b><br>';
+    }
+    $('previewBody').innerHTML =
+      '生效范围：<b>'+who+'</b><br>'
+    + '统计口径：<b>'+rule+'</b><br>'
+    + cat3Line
+    + '报告取数字段：<code>'+field+'</code>（清洗期已落库，取数即用、不实时算）';
+  }
+  function renderAll(){ renderCust(); renderCaliber(); renderMemberField(); renderPreview(); }
+
+  bindSeg('custType', function(v){ custType=v; renderCust(); renderPreview(); });
+  bindSeg('caliber', function(v){ caliber=v; renderCaliber(); renderPreview(); });
+  bindChkGroup();
+  $('groupSel').addEventListener('change', renderPreview);
+  $('corpSel').addEventListener('change', renderPreview);
+  $('memberSel').addEventListener('change', function(){ renderMemberField(); renderPreview(); });
+
+  $('saveBtn').addEventListener('click', function(){
+    var t=$('toast'); t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  });
+  $('resetBtn').addEventListener('click', function(){
+    custType='group'; caliber='acc';
+    $('custType').querySelectorAll('span').forEach(function(s){ s.classList.toggle('active', s.getAttribute('data-v')==='group'); });
+    $('caliber').querySelectorAll('span').forEach(function(s){ s.classList.toggle('active', s.getAttribute('data-v')==='acc'); });
+    $('groupSel').selectedIndex=0; $('corpSel').selectedIndex=0; $('memberSel').selectedIndex=0;
+    $('cat3Group').querySelectorAll('.chk').forEach(function(c){ c.querySelector('input').checked=true; c.classList.add('checked'); });
+    renderAll();
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

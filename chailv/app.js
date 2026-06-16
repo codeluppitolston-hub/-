@@ -9,19 +9,32 @@
   };
 
   /* ---------- 组件 ---------- */
-  function donut(segs, legend){
+  function donut(segs, legend, tips){
     var acc=0;
     var stops=segs.map(function(s){var a=acc;acc+=s.pct;return s.color+' '+a+'% '+acc+'%';}).join(',');
-    var leg=legend.map(function(l){return '<div><span class="dot" style="background:'+l.color+'"></span>'+l.label+'</div>';}).join('');
-    return '<div class="donut-wrap"><div class="donut" style="background:conic-gradient('+stops+')"></div><div class="legend">'+leg+'</div></div>';
+    var hasTip=!!(tips&&tips.length);
+    var leg=legend.map(function(l,i){
+      var attr=(hasTip&&tips[i]!=null)?(' class="has-tip" data-tip="'+tips[i]+'"'):'';
+      return '<div'+attr+'><span class="dot" style="background:'+l.color+'"></span>'+l.label+'</div>';
+    }).join('');
+    var dCls='donut'+(hasTip?' has-donut-tip':'');
+    var dData=hasTip?(' data-segs="'+segs.map(function(s){return s.pct;}).join(',')+'" data-tips="'+tips.join('~~')+'"'):'';
+    return '<div class="donut-wrap"><div class="'+dCls+'" style="background:conic-gradient('+stops+')"'+dData+'></div><div class="legend">'+leg+'</div></div>';
   }
-  function trendBars(vals, max, unit){
+  function trendBars(vals, max, unit, yoyArr){
     var steps=5, yl=[];
     for(var i=steps;i>=0;i--){ yl.push((max/steps*i)+unit); }
     var data=vals.map(function(v,idx){return {label:'2026-'+(idx+1), val:v+unit, h:Math.round(v/max*190)};});
     var ys=yl.map(function(t,i){return '<div style="top:'+(i/(yl.length-1)*100)+'%">'+t+'</div>';}).join('');
     var bs=data.map(function(d){return '<div class="bar-col"><div class="bar-val">'+d.val+'</div><div class="bar" style="height:'+d.h+'px"></div></div>';}).join('');
-    var xs=data.map(function(d){return '<span>'+d.label+'</span>';}).join('');
+    var xs=data.map(function(d,i){
+      var yo='';
+      if(yoyArr && yoyArr[i]!=null){
+        var r=yoyArr[i], g=vals[i]-vals[i]/(1+r);
+        yo='<div class="x-yoy">同比 '+deltaSpan(g,unit,2)+' <span class="x-yoy-rate">'+yoy(r*100)+'</span></div>';
+      }
+      return '<span>'+d.label+yo+'</span>';
+    }).join('');
     return '<div class="chart"><div class="y-axis">'+ys+'</div><div class="bars">'+bs+'</div></div><div class="x-labels">'+xs+'</div>';
   }
   function stackBars(items, max, unit, legend){
@@ -67,7 +80,12 @@
       var cur=(d.tip||d.drill!=null)?';cursor:pointer':'';
       return '<div class="bar-col" style="min-width:'+cw+'px"><div class="bar-val">'+(d.disp!=null?d.disp:(d.val+unit))+'</div><div class="'+cls+'" style="height:'+h+'px;width:'+bw+'px;background:'+color+cur+'"'+attrs+'></div></div>';
     }).join('');
-    var xs=items.map(function(d){return '<span style="min-width:'+cw+'px;font-size:11px">'+d.label+'</span>';}).join('');
+    var yoyUnit=opts.yoyUnit||'';
+    var xs=items.map(function(d){
+      var yo='';
+      if(d.yoy!=null){ var g=d.val-d.val/(1+d.yoy); yo='<div class="x-yoy">同比 '+deltaSpan(g,yoyUnit,0)+' <span class="x-yoy-rate">'+yoy(d.yoy*100)+'</span></div>'; }
+      return '<span style="min-width:'+cw+'px;font-size:11px">'+d.label+yo+'</span>';
+    }).join('');
     return '<div class="tbl-wrap"><div class="chart" style="min-width:'+W+'px"><div class="y-axis">'+ys+'</div><div class="bars">'+bs+'</div></div>'
       + '<div class="x-labels" style="min-width:'+W+'px">'+xs+'</div></div>';
   }
@@ -108,6 +126,44 @@
       b.addEventListener('mouseleave',function(){ tip.style.display='none'; });
     });
   }
+  /* 环形图悬停浮层（仿真实系统 tooltip，含同比）——需求18：分布环形图 tooltip 增加同比 */
+  function bindDonutTip(root){
+    if(!root) return;
+    var tip=document.getElementById('barTip');
+    if(!tip){ tip=document.createElement('div'); tip.id='barTip'; tip.className='chart-tip'; document.body.appendChild(tip); }
+    function show(str,e){
+      if(!str){ tip.style.display='none'; return; }
+      var parts=str.split('||'), html='<div class="ct-title">'+parts[0]+'</div>';
+      for(var i=1;i<parts.length;i++){
+        var st=''; if(parts[i].indexOf('同比')===0){ st=parts[i].indexOf('-')>-1?'color:#f5222d':'color:#52c41a'; }
+        html+='<div class="ct-row" style="'+st+'">'+parts[i]+'</div>';
+      }
+      tip.innerHTML=html; tip.style.display='block';
+      var x=e.clientX+14, y=e.clientY+14; if(x+220>window.innerWidth) x=e.clientX-220;
+      tip.style.left=x+'px'; tip.style.top=y+'px';
+    }
+    root.querySelectorAll('.donut.has-donut-tip').forEach(function(d){
+      var segs=(d.getAttribute('data-segs')||'').split(',').map(Number);
+      var tips=(d.getAttribute('data-tips')||'').split('~~');
+      d.style.cursor='pointer';
+      d.addEventListener('mousemove',function(e){
+        var r=d.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+        var dx=e.clientX-cx, dy=e.clientY-cy, dist=Math.sqrt(dx*dx+dy*dy);
+        var outer=r.width/2, inner=outer-r.width*(36/140);
+        if(dist>outer||dist<inner){ tip.style.display='none'; return; }
+        var ang=Math.atan2(dx,-dy)*180/Math.PI; if(ang<0) ang+=360;
+        var pct=ang/360*100, acc=0, idx=segs.length-1;
+        for(var i=0;i<segs.length;i++){ if(pct<acc+segs[i]){ idx=i; break; } acc+=segs[i]; }
+        show(tips[idx], e);
+      });
+      d.addEventListener('mouseleave',function(){ tip.style.display='none'; });
+    });
+    root.querySelectorAll('.legend .has-tip').forEach(function(li){
+      li.style.cursor='pointer';
+      li.addEventListener('mousemove',function(e){ show(li.getAttribute('data-tip'), e); });
+      li.addEventListener('mouseleave',function(){ tip.style.display='none'; });
+    });
+  }
   /* 轻量 toast 提示 */
   function toast(msg){
     var t=document.getElementById('toast');
@@ -117,44 +173,122 @@
   }
   /* 需求11：用车明细下穿 —— 由时间段柱子 / 场景行点击，生成订单明细（含成本中心 + 导出，遵循全局导出原则） */
   function carDetail(dimName, srcLabel, dimType, key, cnt){
-    var ppl=['姜元斐','周琳','王伟伟','陆玉兰','康珂然','古力勾'];
+    var ppl=['王敏','李强','张磊','刘洋','杨帆','赵丽'];
+    var emp=['20160721222940752334','20160615092159473114','20200512192146904199','20190218162611176186','20210111091730098126','20230308123009041000'];
+    var settle=['示例企业集团总部','华东核算中心','华南核算中心','西南核算中心','华北核算中心','华中核算中心'];
     var cc=['销售一部','市场推广部','技术研发部','客户服务中心','财务部','采购部'];
+    var dept=['华东销售中心','品牌市场部','平台研发组','客服一部','资金结算部','集中采购部'];
+    var travel=['因公','因公','因公','因公','因公','因私'];
+    var sup=['滴滴出行','曹操出行','阳光出行','首汽约车','T3出行','神州专车'];
+    var ctype=['实时用车','预约用车','接送机','实时用车','接送站','实时用车'];
+    var vtype=['经济型','舒适型','商务型','经济型','豪华型','舒适型'];
     var scn=['21:30以后市内用车','出差','市内因公出行','客满通宵班次上班用车','会议会展'];
     var tslot=['0-6','22-24','6-8','8-10','18-20','12-14'];
     var clock=['03:24','23:18','07:48','08:51','19:05','13:15'];
+    var tclock=['03:31','23:25','07:55','08:58','19:12','13:22'];
+    var addrFrom=['成都市金牛区茶店子','成都市武侯区桐梓林','成都双流国际机场T2','成都高新区天府软件园','成都东站','成都市锦江区春熙路'];
+    var addrTo=['成都市金牛区某写字楼','成都市新都区某园区','成都市武侯区某酒店','成都天府新区某中心','成都市金堂县某厂区','成都市温江区某基地'];
     var amts=[37.63,67.67,49.39,27.47,90.93,42.10];
     var kms=[8.2,21.5,12.0,6.4,18.7,9.3];
+    var over=[0,0,12,0,35,0];
     var anom=['—','—','上车地址偏离','—','里程异常','—'];
     var N=6, rows='';
     for(var i=0;i<N;i++){
       var oid='26'+(50510+i*1373+key.length*17)+'013';
+      var ooid='YP'+(80213000+i*1777+key.length*23);
       var seg=(dimType==='time')?key:tslot[(i+key.length)%tslot.length];
       var sc =(dimType==='scene')?key:scn[i%scn.length];
-      rows+=trow([oid, ppl[i%6], cc[i%6], seg, sc, clock[i%6], kms[i%6].toFixed(1), fmtAmt(amts[i%6])+'元', anom[i%6]]);
+      var dd='2026-03-'+(10+i<10?'0'+(10+i):(10+i));
+      var dur=Math.round(kms[i%6]*2.6);
+      rows+=trow([oid, ooid, ppl[i%6], emp[i%6], '四川示例企业集团有限公司', settle[i%6], cc[i%6], dept[i%6], travel[i%6],
+        sup[i%6], ctype[i%6], vtype[i%6], sc, seg, addrFrom[i%6], addrTo[i%6], dd+' '+clock[i%6], dd+' '+tclock[i%6],
+        kms[i%6].toFixed(1), dur, fmtAmt(amts[i%6])+'元', fmtAmt(over[i%6])+'元', anom[i%6]]);
     }
     return '<div class="drill-head"><b>📋 订单明细 · '+dimName+'「'+key+'」</b>'
       + '<span class="drill-sub">下穿自「'+srcLabel+'」 · 约 '+cnt.toLocaleString()+' 笔（示例展示前 '+N+' 笔）</span>'
       + '<span class="drill-close" title="收起">✕</span></div>'
-      + '<div class="callout">🔒 遵循<b>全局导出原则</b>：明细统一下穿到<b>消费报表_用车</b>，含<b>成本中心</b>字段；导出<b>受数据权限约束</b>；量级控制：必选时间范围、单次导出行数/时间上限、必要筛选项，超限提示缩小范围。</div>'
+      + '<div class="callout">🔒 遵循<b>全局导出原则</b>：所有用车数据统一下穿到此<b>用车订单明细（口径同 CarConsumptionDetail 用车消费明细表）</b>，含<b>成本中心 / 核算单元 / 部门 / 公司</b>等组织字段；导出<b>受数据权限约束</b>；量级控制：必选时间范围、单次导出行数/时间上限、必要筛选项，超限提示缩小范围。</div>'
       + '<div style="margin:10px 0"><span class="export-btn js-export">⤓ 导出明细（Excel）</span></div>'
-      + tableW(thead(['销售订单号','出行人','成本中心','时间段','用车场景','上车时间','行驶里程(km)','消费金额','异常原因'])+rows)
-      + '<div class="hint">* 示例脱敏数据；实际下穿后由三方 BI（衡石）自带导出能力生成，限定条件以压测结果为准。</div>';
+      + tableW(thead(['销售订单号','出票订单号','出行人','员工编号','所属公司','核算单元','成本中心','部门','因公/因私','用车供应商','用车类型','用车车型','用车场景','时间段','上车地址','下车地址','使用时间','交易完成时间','行驶里程(km)','行驶用时(min)','消费金额','超标支付金额','异常原因'])+rows)
+      + '<div class="hint">* 示例脱敏数据；字段对齐用车消费明细表（CarConsumptionDetail）。实际下穿后由三方 BI（衡石）自带导出能力生成，限定条件以压测结果为准。</div>';
+  }
+  /* 底部"穿透用"明细面板（持久存在，点击后填充内容） */
+  function drillPanel(id, title, hint){
+    return '<div class="drill-box" id="'+id+'"><div class="drill-title">'+title+' <span class="opt-tag">穿透用</span></div>'
+      + '<div class="drill-content" data-hint="'+hint+'"><div class="drill-empty">'+hint+'</div></div></div>';
+  }
+  /* 需求3：节约明细（按笔）—— 由潜在节省明细行点击下穿 */
+  function saveDetail(line, typeName, cnt){
+    var ppl=['张磊','李强','王敏','刘洋','陈静','杨帆'];
+    var emp=['20200512192146904199','20160615092159473114','20160721222940752334','20190218162611176186','20180903112233445566','20210111091730098126'];
+    var cc=['销售一部','市场推广部','技术研发部','客户服务中心','财务部','采购部'];
+    var airRoute=['上海-北京','成都-深圳','北京-广州','上海-成都','深圳-上海','成都-杭州'];
+    var hotelName=['全季(上海徐家汇)','上海静安诺富特','成都宽窄巷子城际','北京希尔顿','香港海景嘉福洲际','深圳亚朵'];
+    var src=(line==='air')?['协议出票节省','差标管控节省','GP机票节省','协议退改节省','协议出票节省','差标管控节省']
+                          :['协议价节省','差标管控节省','取消节省','协议价节省','差标管控节省','协议价节省'];
+    var oprice=[2180,1560,2640,1980,2420,1760], sprice=[1850,1320,2210,1690,2090,1500];
+    var dates=['2026-03-15','2026-03-28','2026-04-12','2026-04-25','2026-05-08','2026-05-20'];
+    var colPlace=(line==='air')?'航线':'酒店名称';
+    var N=6, rows='';
+    for(var i=0;i<N;i++){
+      var oid='260'+(3150012+i*131017+typeName.length*7);
+      var place=(line==='air')?airRoute[i%6]:hotelName[i%6];
+      var sv=oprice[i%6]-sprice[i%6];
+      rows+=trow([oid, ppl[i%6], emp[i%6], cc[i%6], dates[i%6], place, fmtAmt(oprice[i%6])+'元', fmtAmt(sprice[i%6])+'元', fmtAmt(sv)+'元', src[i%6], typeName]);
+    }
+    return '<div class="drill-head"><b>📋 节约明细（按笔）· '+typeName+'</b>'
+      + '<span class="drill-sub">下穿自「潜在节省明细」 · 约 '+cnt.toLocaleString()+' 笔（示例展示前 '+N+' 笔）</span>'
+      + '<span class="drill-close" title="收起">✕</span></div>'
+      + '<div class="callout">🔒 遵循<b>全局导出原则</b>：节约明细统一下穿到<b>消费报表（'+(line==='air'?'机票':'酒店')+'）</b>核对原始订单；<b>明细逐笔加总 = 报告节约总额</b>；导出<b>受数据权限约束</b> + 量级控制（必选时间范围、行数/时间上限）。</div>'
+      + '<div style="margin:10px 0"><span class="export-btn js-export">⤓ 导出明细（Excel）</span></div>'
+      + tableW(thead(['订单号','出行人','员工编号','成本中心','出行时间',colPlace,'原价','成交价','节约金额','节约来源','潜在节省类型'])+rows)
+      + '<div class="hint">* 示例脱敏数据；字段口径同需求3。实际下穿后由三方 BI（衡石）自带导出能力生成，限定条件以压测结果为准。</div>';
+  }
+  function fillPanel(panel, html){
+    if(!panel) return;
+    var content=panel.querySelector('.drill-content'); if(!content) return;
+    var hint=content.getAttribute('data-hint')||'';
+    content.innerHTML=html;
+    var cl=content.querySelector('.drill-close'); if(cl) cl.addEventListener('click',function(){ content.innerHTML='<div class="drill-empty">'+hint+'</div>'; });
+    var ex=content.querySelector('.js-export'); if(ex) ex.addEventListener('click',function(){ toast('已触发导出（示例）：受数据权限约束 + 量级控制，文件将进入「下载管理」'); });
+    if(panel.scrollIntoView) panel.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  /* ---------- 跳转「消费与节省明细」并带入查询条件 ---------- */
+  var DETAIL_JUMP=null;
+  var JUMP_DATE='2026年1月01日 — 2026年6月08日';
+  function gotoDetail(line, from, conds){ DETAIL_JUMP={line:line, from:from, conds:conds||[]}; go('detail-'+line); }
+  function jrow(line, from, conds, cells){
+    var dc=conds.map(function(c){return c[0]+'::'+c[1];}).concat(['交易时间::'+JUMP_DATE]).join('~~');
+    return '<tr class="js-jump" data-line="'+line+'" data-from="'+from+'" data-conds="'+dc+'">'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';
+  }
+  function jumpBanner(line){
+    if(!DETAIL_JUMP || DETAIL_JUMP.line!==line) return '';
+    var chips=DETAIL_JUMP.conds.map(function(c){return '<span class="jump-chip">'+c.k+'：<b>'+c.v+'</b></span>';}).join('');
+    return '<div class="jump-note">↳ 由「'+DETAIL_JUMP.from+'」跳转带入查询条件：'+(chips||'<i>全部</i>')+'<span class="jump-clear">清除带入条件</span></div>';
+  }
+  function bindJump(root){
+    if(!root) return;
+    root.querySelectorAll('.js-jump').forEach(function(el){
+      el.style.cursor='pointer';
+      el.addEventListener('click',function(e){ e.stopPropagation();
+        var conds=[]; (el.getAttribute('data-conds')||'').split('~~').forEach(function(p){ if(!p) return; var kv=p.split('::'); conds.push({k:kv[0],v:kv[1]||''}); });
+        gotoDetail(el.getAttribute('data-line'), el.getAttribute('data-from')||'', conds);
+      });
+    });
+    var clr=root.querySelector('.jump-clear');
+    if(clr) clr.addEventListener('click',function(){ var nt=root.querySelector('.jump-note'); if(nt&&nt.parentNode) nt.parentNode.removeChild(nt); toast('已清除带入的查询条件'); });
   }
   function bindCarDrill(root){
     if(!root) return;
-    var box=root.querySelector('#carDrill'); if(!box) return;
-    function open(dimName, srcLabel, dimType, key, cnt){
-      box.innerHTML=carDetail(dimName, srcLabel, dimType, key, cnt);
-      box.style.display='block';
-      var cl=box.querySelector('.drill-close'); if(cl) cl.addEventListener('click',function(){ box.style.display='none'; });
-      var ex=box.querySelector('.js-export'); if(ex) ex.addEventListener('click',function(){ toast('已触发导出（示例）：受数据权限约束 + 量级控制，文件将进入「下载管理」'); });
-      if(box.scrollIntoView) box.scrollIntoView({behavior:'smooth', block:'center'});
-    }
     root.querySelectorAll('.bar.drill[data-drill]').forEach(function(b){
-      b.addEventListener('click',function(){ open('用车时间段','用车时间段分布','time', b.getAttribute('data-drill'), parseInt(b.getAttribute('data-cnt')||'0',10)); });
+      b.addEventListener('click',function(){ gotoDetail('car','用车时间段分布',[{k:'用车时间段',v:b.getAttribute('data-drill')},{k:'交易时间',v:JUMP_DATE}]); });
     });
     root.querySelectorAll('tr.drill-row[data-drill]').forEach(function(tr){
-      tr.addEventListener('click',function(){ open('用车场景','用车场景消费情况','scene', tr.getAttribute('data-drill'), parseInt(tr.getAttribute('data-cnt')||'0',10)); });
+      tr.addEventListener('click',function(){ gotoDetail('car','用车场景消费情况',[{k:'用车场景类型',v:tr.getAttribute('data-drill')},{k:'交易时间',v:JUMP_DATE}]); });
+    });
+    root.querySelectorAll('tr.drill-row-save[data-drill]').forEach(function(tr){
+      var line=tr.getAttribute('data-line');
+      tr.addEventListener('click',function(){ gotoDetail(line, (line==='air'?'机票':'酒店')+'潜在节省明细',[{k:'潜在节省类型',v:tr.getAttribute('data-drill')},{k:'交易时间',v:JUMP_DATE}]); });
     });
   }
   /* 分组纵向柱状图（贵司 / 商旅 双系列） */
@@ -216,6 +350,7 @@
   function trow(cells, bold){ return '<tr'+(bold?' style="font-weight:600;background:#fafafa"':'')+'>'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>'; }
   /* 可下穿明细的表行（点击触发 bindCarDrill） */
   function drillRow(key, cnt, cells){ return '<tr class="drill-row" data-drill="'+key+'" data-cnt="'+cnt+'">'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>'; }
+  function drillRowSave(key, line, cnt, cells){ return '<tr class="drill-row-save" data-drill="'+key+'" data-line="'+line+'" data-cnt="'+cnt+'">'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>'; }
   function tableW(inner){ return '<div class="tbl-wrap"><table class="tbl">'+inner+'</table></div>'; }
   function moreBar(n,pages){ return '<div class="more-bar">共 '+n+' 条数据 <span class="pager"><s>&lt;</s><b>1</b><s>2</s><s>3</s>'+(pages>3?'<s>…</s><s>'+pages+'</s>':'')+'<s>&gt;</s></span> 前往 1 /'+pages+' 页</div>'; }
   /* 维度切换表（公司 / 核算主体 / 成本中心 或 员工 / 成本中心 / 核算主体） bodies 与 tabs 等长 */
@@ -245,13 +380,12 @@
   /* 需求18：返回某月的 [同比增长值, 同比, 环比] 三个单元格（直接并入明细表，不单独成表） */
   /* 仅返回 [同比, 环比]（不要同比增长值） */
   function yoyTriple(cur,i){
-    var c=cur[i], r=YOY_R[i];
-    var mom=(i>0&&cur[i-1])?((c-cur[i-1])/cur[i-1]*100):null;
-    return [yoy(r*100), (mom==null?'-':yoy(mom))];
+    var r=YOY_R[i];
+    return [yoy(r*100)];
   }
   function yoyTripleTotal(cur){
     var sc=0,sp=0; for(var i=0;i<cur.length;i++){ sc+=cur[i]; sp+=cur[i]/(1+YOY_R[i]); }
-    var yr=sp?((sc-sp)/sp*100):0; return [yoy(yr), '-'];
+    var yr=sp?((sc-sp)/sp*100):0; return [yoy(yr)];
   }
   /* 各总览页主指标月度值（用于明细表同比/环比列） */
   var MD_ALL=[1294900,840000,1050000,915600,770700,443300];
@@ -278,11 +412,11 @@
       var c=cur[i], r=YOY_R[i], p=c/(1+r), yv=c-p, yr=r*100;
       var mom=(i>0&&cur[i-1])?((c-cur[i-1])/cur[i-1]*100):null;
       sc+=c; sp+=p;
-      rows+=trow([labels[i], nf(c,dec)+unit, nf(p,dec)+unit, deltaSpan(yv,unit,dec), yoy(yr), (mom==null?'-':yoy(mom))]);
+      rows+=trow([labels[i], nf(c,dec)+unit, nf(p,dec)+unit, deltaSpan(yv,unit,dec), yoy(yr)]);
     }
     var tyv=sc-sp, tyr=sp?(tyv/sp*100):0;
-    rows+=trow(['合计', nf(sc,dec)+unit, nf(sp,dec)+unit, deltaSpan(tyv,unit,dec), yoy(tyr), '-'],true);
-    return tableW(thead(['统计时间','本期'+label,'上年同期','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>'])+rows);
+    rows+=trow(['合计', nf(sc,dec)+unit, nf(sp,dec)+unit, deltaSpan(tyv,unit,dec), yoy(tyr)],true);
+    return tableW(thead(['统计时间','本期'+label,'上年同期','同比 <span class="new-tag">需求18</span>'])+rows);
   }
   function yoyTable(metrics){
     var tabs=metrics.map(function(m,i){return '<span class="'+(i===0?'active':'')+'" data-i="'+i+'">'+m.label+'</span>';}).join('');
@@ -386,13 +520,13 @@
   }
   function overStandardTable(line, cnt, rate, pay, yoyV){
     var r=parseFloat(String(rate))||0, nr=Math.round((100-r)*10)/10;
-    return '<div class="sec-title mt">超标情况（'+line+'） <span class="new-tag">需求7 新增</span></div>'
+    return '<div class="sec-title mt">混合支付情况（'+line+'） <span class="new-tag">需求7 新增</span></div>'
       + '<div class="row"><div style="flex:1;min-width:280px">'
-      +   donut([{pct:r,color:'#f5222d'},{pct:100-r,color:C.teal}],[{color:'#f5222d',label:'超标个人支付('+rate+')'},{color:C.teal,label:'非超标('+nr+'%)'}])
+      +   donut([{pct:r,color:'#f5222d'},{pct:100-r,color:C.teal}],[{color:'#f5222d',label:'混合支付('+rate+')'},{color:C.teal,label:'非混合支付('+nr+'%)'}])
       + '</div><div style="flex:1.4;min-width:360px">'
-      +   '<table class="tbl"><tr><th>业务线</th><th>超标消费明细数</th><th>超标率</th><th>同比</th></tr>'
+      +   '<table class="tbl"><tr><th>业务线</th><th>混合支付明细数</th><th>混合支付率</th><th>同比</th></tr>'
       +     '<tr><td>'+line+'</td><td>'+cnt+'</td><td>'+rate+'</td><td>'+yoy(yoyV==null?0:yoyV)+'</td></tr></table>'
-      +   '<div style="color:#909399;font-size:12px;margin-top:8px">🔒 超标个人支付金额 <b>'+pay+'</b>（敏感数据，可见粒度按"敏感数据决策"配置）；<b>本模块可按企业开关配置</b>。</div>'
+      +   '<div style="color:#909399;font-size:12px;margin-top:8px">🔒 个人支付金额 <b>'+pay+'</b>（敏感数据，可见粒度按"敏感数据决策"配置）；<b>本模块可按企业开关配置</b>。</div>'
       + '</div></div>';
   }
   function reqbox(list){
@@ -415,23 +549,6 @@
   function cmpYoy(name){ var s=0; for(var i=0;i<name.length;i++) s+=name.charCodeAt(i); return ((s*7)%460)/10 - 17; }
   function cmpRows(dim, scope){
     scope=scope||'all';
-    if(scope==='all'){
-      var aw=CMP[dim].slice().sort(function(a,b){return b.amt-a.amt;});
-      var sA=aw.reduce(function(s,x){return s+x.amt;},0)||1, sC=aw.reduce(function(s,x){return s+x.cnt;},0)||1;
-      var bw=aw.map(function(e,i){
-        var A=cmpVal(e,'air'),H=cmpVal(e,'hotel'),T=cmpVal(e,'train'),Ca=cmpVal(e,'car');
-        function c(amt,cnt){ return '<td style="text-align:right">'+amt.toFixed(1)+'万</td><td style="text-align:right">'+cnt.toLocaleString()+'</td>'; }
-        return '<tr><td>'+(i+1)+'</td><td>'+e.n+'</td>'
-          +'<td style="text-align:right">'+e.amt.toFixed(1)+'万</td><td style="text-align:right">'+(e.amt/sA*100).toFixed(1)+'%</td><td style="text-align:right">'+yoy(cmpYoy(e.n))+'</td>'
-          +'<td style="text-align:right">'+e.cnt.toLocaleString()+'</td><td style="text-align:right">'+(e.cnt/sC*100).toFixed(1)+'%</td>'
-          +c(A.amt,A.cnt)+c(H.amt,H.cnt)+c(T.amt,T.cnt)+c(Ca.amt,Ca.cnt)+'</tr>';
-      }).join('');
-      var hw='<tr><th rowspan="2">排名</th><th rowspan="2">'+dim+'</th><th colspan="3">消费金额</th><th colspan="2">产品条数</th><th colspan="2">机票</th><th colspan="2">酒店</th><th colspan="2">火车</th><th colspan="2">用车</th></tr>'
-        +'<tr><th style="text-align:right">金额</th><th style="text-align:right">占比</th><th style="text-align:right">同比</th><th style="text-align:right">条数</th><th style="text-align:right">占比</th>'
-        +'<th style="text-align:right">金额</th><th style="text-align:right">条数</th><th style="text-align:right">金额</th><th style="text-align:right">条数</th>'
-        +'<th style="text-align:right">金额</th><th style="text-align:right">条数</th><th style="text-align:right">金额</th><th style="text-align:right">条数</th></tr>';
-      return '<table class="tbl">'+hw+bw+'</table>';
-    }
     var arr=CMP[dim].map(function(e){ var v=cmpVal(e,scope); return {n:e.n,amt:v.amt,cnt:v.cnt}; });
     arr.sort(function(a,b){return b.amt-a.amt;});
     var totA=arr.reduce(function(s,x){return s+x.amt;},0)||1, totC=arr.reduce(function(s,x){return s+x.cnt;},0)||1;
@@ -445,7 +562,7 @@
     }).join('');
     return '<table class="tbl"><tr><th>排名</th><th>'+dim+'</th><th style="text-align:right">消费金额</th><th style="text-align:right">同比</th><th style="text-align:right">金额占比</th><th style="text-align:right">产品条数</th><th style="text-align:right">条数占比</th></tr>'+rows+'</table>';
   }
-  function compareSection(scope){
+  function compareSection(scope){ return ''; /* 需求19 对比组件已从总览各页移除（用户要求 2026-06-15）；如需恢复删掉本行即可。对比能力保留在独立「对比报告」 */
     scope=scope||'all';
     var tabs=['企业','外部企业','核算主体','成本中心','部门'].map(function(d,i){return '<span class="'+(i===0?'active':'')+'" data-dim="'+d+'">'+d+'对比</span>';}).join('');
     var sn={all:'整体',air:'机票',hotel:'酒店',train:'火车',car:'用车'}[scope];
@@ -454,13 +571,150 @@
       + '<div class="cmp-block" data-dim="企业" data-scope="'+scope+'"><div class="cmp-head"><div class="cmp-tabs">'+tabs+'</div></div>'
       + '<div class="cmp-rank" style="display:block;max-height:420px;overflow:auto">'+cmpRows('企业',scope)+'</div></div>';
   }
+  /* 对比报告 · 节省口径行（节省金额/占比/同比/节省率） */
+  var SAVE_BASE = {all:15.5, air:18.0, hotel:12.0};
+  function cmpSaveRate(name, scope){ var b=SAVE_BASE[scope]||15.5; var s=0; for(var i=0;i<name.length;i++) s+=name.charCodeAt(i); return Math.max(3, Math.round((b + ((s%80)/10 - 4))*10)/10); }
+  function cmpSaveRows(dim, scope){
+    scope=scope||'all';
+    var arr=CMP[dim].map(function(e){
+      var amt=(scope==='all')?e.amt:Math.round(e.amt*LINE_RATIO[scope].amt*10)/10;
+      var rate=cmpSaveRate(e.n,scope);
+      return {n:e.n, save:Math.round(amt*rate)/100, rate:rate};
+    });
+    arr.sort(function(a,b){return b.save-a.save;});
+    var tot=arr.reduce(function(s,x){return s+x.save;},0)||1;
+    var rows=arr.map(function(x,i){
+      return '<tr><td>'+(i+1)+'</td><td>'+x.n+'</td>'
+        +'<td style="text-align:right">'+x.save.toFixed(1)+'万</td>'
+        +'<td style="text-align:right">'+(x.save/tot*100).toFixed(1)+'%</td>'
+        +'<td style="text-align:right">'+yoy(cmpYoy(x.n))+'</td>'
+        +'<td style="text-align:right">'+x.rate.toFixed(1)+'%</td></tr>';
+    }).join('');
+    return '<table class="tbl"><tr><th>排名</th><th>'+dim+'</th><th style="text-align:right">节省金额</th><th style="text-align:right">节省占比</th><th style="text-align:right">同比</th><th style="text-align:right">节省率</th></tr>'+rows+'</table>';
+  }
+  /* 对比报告 · 潜在节省口径行（潜在节省金额/占比/同比/潜在节省率） */
+  var POT_BASE = {all:4.5, air:5.5, hotel:3.5};
+  function cmpPotRate(name, scope){ var b=POT_BASE[scope]||4.5; var s=0; for(var i=0;i<name.length;i++) s+=name.charCodeAt(i); return Math.max(1, Math.round((b + ((s%40)/10 - 2))*10)/10); }
+  function cmpPotentialRows(dim, scope){
+    scope=scope||'all';
+    var arr=CMP[dim].map(function(e){
+      var amt=(scope==='all')?e.amt:Math.round(e.amt*LINE_RATIO[scope].amt*10)/10;
+      var rate=cmpPotRate(e.n,scope);
+      return {n:e.n, pot:Math.round(amt*rate)/100, rate:rate};
+    });
+    arr.sort(function(a,b){return b.pot-a.pot;});
+    var tot=arr.reduce(function(s,x){return s+x.pot;},0)||1;
+    var rows=arr.map(function(x,i){
+      return '<tr><td>'+(i+1)+'</td><td>'+x.n+'</td>'
+        +'<td style="text-align:right">'+x.pot.toFixed(1)+'万</td>'
+        +'<td style="text-align:right">'+(x.pot/tot*100).toFixed(1)+'%</td>'
+        +'<td style="text-align:right">'+yoy(cmpYoy(x.n))+'</td>'
+        +'<td style="text-align:right">'+x.rate.toFixed(1)+'%</td></tr>';
+    }).join('');
+    return '<table class="tbl"><tr><th>排名</th><th>'+dim+'</th><th style="text-align:right">潜在节省金额</th><th style="text-align:right">潜在节省占比</th><th style="text-align:right">同比</th><th style="text-align:right">潜在节省率</th></tr>'+rows+'</table>';
+  }
+  /* 对比报告 · 各业务线节省（机票/酒店/火车/用车 节省金额 + 合计） */
+  var LINE_SAVE_RATE = {air:18, hotel:12, train:8, car:10};
+  function cmpLineSaveRows(dim){
+    var lines=[['air','机票'],['hotel','酒店'],['train','火车'],['car','用车']];
+    var arr=CMP[dim].map(function(e){
+      var vals=lines.map(function(l){ var lineAmt=e.amt*LINE_RATIO[l[0]].amt; return Math.round(lineAmt*LINE_SAVE_RATE[l[0]])/100; });
+      var tot=vals.reduce(function(a,b){return a+b;},0);
+      return {n:e.n, vals:vals, tot:Math.round(tot*10)/10};
+    });
+    arr.sort(function(a,b){return b.tot-a.tot;});
+    var rows=arr.map(function(x,i){
+      return '<tr><td>'+(i+1)+'</td><td>'+x.n+'</td>'
+        + x.vals.map(function(v){return '<td style="text-align:right">'+v.toFixed(1)+'万</td>';}).join('')
+        + '<td style="text-align:right;font-weight:600">'+x.tot.toFixed(1)+'万</td></tr>';
+    }).join('');
+    return '<table class="tbl"><tr><th>排名</th><th>'+dim+'</th><th style="text-align:right">机票节省</th><th style="text-align:right">酒店节省</th><th style="text-align:right">火车节省</th><th style="text-align:right">用车节省</th><th style="text-align:right">合计节省</th></tr>'+rows+'</table>';
+  }
+  /* 对比报告 · 横向条形排名（复用 .cmp-row 样式，含名次徽标 + 渐变条 + 数值标签） */
+  function cmpBars(items){
+    var max=Math.max.apply(null, items.map(function(x){return Math.abs(x.val);}))||1;
+    return items.map(function(x,i){
+      var w=Math.max(2, Math.round(Math.abs(x.val)/max*100));
+      return '<div class="cmp-row'+(i<3?' top'+(i+1):'')+'"><div class="cmp-rk">'+(i+1)+'</div>'
+        +'<div class="cmp-name" title="'+x.n+'">'+x.n+'</div>'
+        +'<div class="cmp-track"><div class="cmp-bar" style="width:'+w+'%"></div></div>'
+        +'<div class="cmp-val">'+x.label+'</div></div>';
+    }).join('');
+  }
+  function cmpBarConsume(dim){
+    var arr=CMP[dim].slice().sort(function(a,b){return b.amt-a.amt;});
+    return cmpBars(arr.map(function(e){ return {n:e.n, val:e.amt, label:e.amt.toLocaleString()+'万 '+yoy(cmpYoy(e.n))}; }));
+  }
+  function cmpBarSave(dim){
+    var arr=CMP[dim].map(function(e){ var r=cmpSaveRate(e.n,'all'); return {n:e.n, val:Math.round(e.amt*r)/100, rate:r}; });
+    arr.sort(function(a,b){return b.val-a.val;});
+    return cmpBars(arr.map(function(x){ return {n:x.n, val:x.val, label:x.val.toFixed(1)+'万 ('+x.rate.toFixed(1)+'%)'}; }));
+  }
+  function cmpBarPotential(dim){
+    var arr=CMP[dim].map(function(e){ var r=cmpPotRate(e.n,'all'); return {n:e.n, val:Math.round(e.amt*r)/100, rate:r}; });
+    arr.sort(function(a,b){return b.val-a.val;});
+    return cmpBars(arr.map(function(x){ return {n:x.n, val:x.val, label:x.val.toFixed(1)+'万 ('+x.rate.toFixed(1)+'%)'}; }));
+  }
+  /* 对比报告 · 各业务线节省 堆叠条形 + 图例 */
+  function cmpStackLine(dim){
+    var lines=[['air','机票',C.blue],['hotel','酒店',C.orange],['train','火车',C.purple],['car','用车',C.teal]];
+    var arr=CMP[dim].map(function(e){
+      var segs=lines.map(function(l){ return {v:Math.round(e.amt*LINE_RATIO[l[0]].amt*LINE_SAVE_RATE[l[0]])/100, color:l[2]}; });
+      var tot=segs.reduce(function(a,s){return a+s.v;},0);
+      return {n:e.n, segs:segs, tot:Math.round(tot*10)/10};
+    });
+    arr.sort(function(a,b){return b.tot-a.tot;});
+    var max=Math.max.apply(null, arr.map(function(x){return x.tot;}))||1;
+    var legend='<div class="legend-row" style="justify-content:flex-start;margin:0 0 12px 0">'+lines.map(function(l){return '<div><span class="dot" style="background:'+l[2]+'"></span>'+l[1]+'</div>';}).join('')+'</div>';
+    var bars=arr.map(function(x,i){
+      var seg=x.segs.map(function(s){ var w=Math.round(s.v/max*100); return '<div style="width:'+w+'%;height:100%;background:'+s.color+'" title="'+s.v.toFixed(1)+'万"></div>'; }).join('');
+      return '<div class="cmp-row'+(i<3?' top'+(i+1):'')+'"><div class="cmp-rk">'+(i+1)+'</div>'
+        +'<div class="cmp-name" title="'+x.n+'">'+x.n+'</div>'
+        +'<div class="cmp-track" style="display:flex">'+seg+'</div>'
+        +'<div class="cmp-val">'+x.tot.toFixed(1)+'万</div></div>';
+    }).join('');
+    return legend+bars;
+  }
+  /* 对比报告 · 单页（左图右表：左列条形图，右列全字段明细表；一个维度切换左右联动） */
+  function comparePageAll(){
+    var dims=['企业','外部企业','核算主体','成本中心','部门'];
+    var dtabs=dims.map(function(d,i){return '<span class="'+(i===0?'active':'')+'" data-dim="'+d+'">'+d+'对比</span>';}).join('');
+    function cellC(title, kind, html){ return '<div style="flex:1;min-width:380px"><div class="sec-title">'+title+'</div><div class="cmp-rank" data-kind="'+kind+'" style="max-height:360px;overflow:auto">'+html+'</div></div>'; }
+    function cellT(kind, html){ return '<div style="flex:1;min-width:380px"><div class="sec-title" style="color:#909399">明细表（全字段）</div><div class="cmp-rank" data-kind="'+kind+'" style="max-height:360px;overflow:auto">'+html+'</div></div>'; }
+    function block(title, ck, ch, tk, th){ return '<div class="row mt" style="margin-top:20px">'+cellC(title, ck, ch)+cellT(tk, th)+'</div>'; }
+    return '<div class="callout">左侧<b>条形图</b>直观对比、右侧<b>明细表</b>展示全部字段；切换上方<b>对比维度</b>（企业 / 外部企业 / 核算主体 / 成本中心 / 部门），左右联动。受数据权限约束，仅展示权限内对象。</div>'
+      + '<div class="cmp-block" data-dim="企业" data-scope="all">'
+      +   '<div class="cmp-head"><div class="cmp-tabs cmp-dim">'+dtabs+'</div></div>'
+      +   block('① 消费对比 · 消费金额（含同比）', 'bar-consume', cmpBarConsume('企业'), 'consume', cmpRows('企业','all'))
+      +   block('② 节省对比 · 节省金额', 'bar-save', cmpBarSave('企业'), 'save', cmpSaveRows('企业','all'))
+      +   block('③ 节省对比 · 潜在节省', 'bar-potential', cmpBarPotential('企业'), 'potential', cmpPotentialRows('企业','all'))
+      +   block('④ 各业务线节省对比', 'stack-line', cmpStackLine('企业'), 'line', cmpLineSaveRows('企业'))
+      + '</div>';
+  }
   function bindCompare(root){
     if(!root) return;
     root.querySelectorAll('.cmp-block').forEach(function(block){
-      function refresh(){ block.querySelector('.cmp-rank').innerHTML=cmpRows(block.getAttribute('data-dim'),block.getAttribute('data-scope')||'all'); }
-      block.querySelectorAll('.cmp-tabs span').forEach(function(s){ s.addEventListener('click',function(){
-        block.querySelectorAll('.cmp-tabs span').forEach(function(x){x.classList.remove('active');}); s.classList.add('active');
+      var mode=block.getAttribute('data-mode')||'consume';
+      function rowsFor(kind, dim, sc){
+        if(kind==='bar-consume') return cmpBarConsume(dim);
+        if(kind==='bar-save') return cmpBarSave(dim);
+        if(kind==='bar-potential') return cmpBarPotential(dim);
+        if(kind==='stack-line') return cmpStackLine(dim);
+        if(kind==='save') return cmpSaveRows(dim,sc);
+        if(kind==='potential') return cmpPotentialRows(dim,sc);
+        if(kind==='line') return cmpLineSaveRows(dim);
+        return cmpRows(dim,sc);
+      }
+      function refresh(){ var dim=block.getAttribute('data-dim'), sc=block.getAttribute('data-scope')||'all';
+        block.querySelectorAll('.cmp-rank').forEach(function(rk){
+          var kind=rk.getAttribute('data-kind')||(mode==='save'?'save':'consume');
+          rk.innerHTML=rowsFor(kind, dim, sc); }); }
+      block.querySelectorAll('span[data-dim]').forEach(function(s){ s.addEventListener('click',function(){
+        block.querySelectorAll('span[data-dim]').forEach(function(x){x.classList.remove('active');}); s.classList.add('active');
         block.setAttribute('data-dim',s.getAttribute('data-dim')); refresh(); }); });
+      block.querySelectorAll('span[data-scope]').forEach(function(s){ s.addEventListener('click',function(){
+        block.querySelectorAll('span[data-scope]').forEach(function(x){x.classList.remove('active');}); s.classList.add('active');
+        block.setAttribute('data-scope',s.getAttribute('data-scope')); refresh(); }); });
     });
   }
   /* ---------- 需求18：同比/环比（消费/数量双口径联动） ---------- */
@@ -545,6 +799,332 @@
           {t:'<b>需求19</b>：集团对下属<b>各企业集采排名（含同比）</b>已落到本页「成员企业集采排名」', id:'—', tag:'新增'} ]);
   }
 
+  /* ---------- 集采报告（企业站）：月报/季报/年报/可选月年报 × 整体/机票/酒店/火车/用车 ---------- */
+  var CJE_DAYS=(function(){var a=[];for(var i=1;i<=31;i++)a.push(i+'日');return a;})();
+  var CJE_M12=(function(){var a=[];for(var i=1;i<=12;i++)a.push('2025-'+i);return a;})();
+  var CJE_MONTH={
+    headline:'2026年5月集采超过 77.07 万元，节约超过 0.44 万元',
+    bullets:['2026年5月差旅集采 <b>770,706.51元</b>，较去年同比 <span class="cj-down">下降 -24.87%</span>',
+      '2026年5月机票节省 <b>0.03万元</b>，酒店节省 <b>0.42万元</b>，合计节省 <b>0.44万元</b>',
+      '2026年5月累计为贵司 <b>870人</b> 提供差旅服务，差旅服务费 <b>32.00元</b>'],
+    period:'2026年',
+    rows:[['机票','32','105,460.00','13.68%',-53.69],['酒店','76','27,867.00','3.62%',-67.48],['火车','63','11,101.00','1.44%',-35.19],['用车','2,992','119,563.08','15.51%',-17.08],['用餐','3,344','77,839.48','10.10%',-14.37],['增值/其他','3,969','428,875.95','55.65%',-6.80],['总体消费','10,476','770,706.51','100.00%',-24.87]],
+    saving:[['机票','250.00元'],['酒店','4,160.00元'],['总体节省','4,410.00元']],
+    trend:{title:'2026年5月整体消费趋势（消费金额）',sub:'5月整体消费趋势，5月22日交易峰值达 <b>141,233.52元</b>，日均消费金额 <b>24,861.50元</b>',labels:CJE_DAYS,vals:[1.10,0.36,0.67,0.75,2.02,5.46,1.25,2.38,1.46,0.99,3.05,2.30,1.80,3.40,2.20,5.25,1.95,2.66,1.34,1.70,2.60,14.12,9.17,1.30,2.05,2.55,1.14,2.40,1.90,1.50,1.05],barw:16}
+  };
+  var CJE_QUARTER={
+    headline:'2026年Q1集采超过 318.48 万元，节约超过 2.31 万元',
+    bullets:['2026年1季度差旅集采 <b>3,184,864.24元</b>，较去年同比 <span class="cj-up">增长 28.30%</span>',
+      '2026年1季度机票节省 <b>1.15万元</b>，酒店节省 <b>1.16万元</b>，合计节省 <b>2.31万元</b>',
+      '2026年1季度累计为贵司 <b>1,316人</b> 提供差旅服务，差旅服务费 <b>216.00元</b>'],
+    period:'26年Q1',
+    rows:[['机票','155','390,412.00','12.26%',3.67],['酒店','222','225,580.07','7.08%',35.52],['火车','174','37,427.00','1.18%',-3.67],['用车','12,696','480,259.51','15.08%',11.17],['用餐','11,678','267,748.10','8.41%',-13.92],['增值/其他','12,887','1,783,437.56','56.00%',54.08],['总体消费','37,812','3,184,864.24','100.00%',28.30]],
+    saving:[['机票','11,530.81元'],['酒店','11,610.10元'],['总体节省','23,140.91元']],
+    trend:{title:'2026年Q1整体消费趋势（消费金额）',sub:'2026年Q1整体消费趋势，其中1月交易峰值达 <b>1,294,854.02元</b>，月均消费金额 <b>1,061,621.41元</b>',labels:['2026-1','2026-2','2026-3'],vals:[129.49,84.00,105.00],barw:50}
+  };
+  var CJE_YEAR={
+    headline:'2025年集采超过 1,025.71 万元，节约超过 10.70 万元',
+    bullets:['2025年差旅集采 <b>10,257,149.09元</b>，较去年同比 <span class="cj-up">增长 11.77%</span>',
+      '2025年机票节省 <b>3.27万元</b>，酒店节省 <b>7.43万元</b>，合计节省 <b>10.70万元</b>',
+      '2025年累计为贵司 <b>2,171人</b> 提供差旅服务，差旅服务费 <b>284.00元</b>'],
+    period:'2025年',
+    rows:[['机票','594','1,374,193.00','13.40%',-3.55],['酒店','1,101','917,949.86','8.95%',-3.06],['火车','847','176,122.66','1.72%',-30.18],['用车','47,706','1,874,085.29','18.27%',14.51],['用餐','55,880','1,243,059.50','12.12%',-19.13],['增值/其他','57,921','4,671,738.78','45.55%',38.25],['总体消费','164,049','10,257,149.09','100.00%',11.77]],
+    saving:[['机票','32,674.45元'],['酒店','74,310.35元'],['总体节省','106,984.80元']],
+    trend:{title:'2025年整体消费趋势（消费金额）',sub:'2025年整体消费趋势，其中1月交易峰值达 <b>1,236,163.97元</b>，月均消费金额 <b>854,762.42元</b>',labels:CJE_M12,vals:[123.62,50.58,74.04,72.48,102.58,72.59,97.78,72.67,115.72,71.65,86.89,85.11],barw:34}
+  };
+  var CJE_OPTIONAL={
+    headline:'2026年5-5月集采超过 77.07 万元，节约超过 0.44 万元（区间可自定义）',
+    bullets:['可选月份区间汇总（示例选 2026年5月 - 5月）；口径同月报，<b>起止月份可自定义</b>',
+      '2026年5-5月差旅集采 <b>770,706.51元</b>，较去年同比 <span class="cj-down">下降 -24.87%</span>',
+      '2026年5-5月累计为贵司 <b>870人</b> 提供差旅服务，差旅服务费 <b>32.00元</b>'],
+    period:'2026年',
+    rows:CJE_MONTH.rows, saving:CJE_MONTH.saving,
+    trend:{title:'2026年5-5月整体消费趋势（消费金额）',sub:'5-5月整体消费趋势，5月交易峰值达 <b>770,706.51元</b>，月均消费金额 <b>770,706.51元</b>',labels:['2026-5'],vals:[77.07],barw:60}
+  };
+  function cjEntNum(v){ if(v==null) return '-'; var c=v>=0?'#52c41a':'#f5222d'; return '<span style="color:'+c+'">'+(v>0?'+':'')+Number(v).toFixed(2)+'%</span>'; }
+  function cjEntReport(cfg){
+    var banner='<div class="cj-banner"><h2>'+cfg.headline+'</h2><span class="cj-logo">差 旅 壹 号 · YiHao</span></div>';
+    var bullets='<ul class="cj-bullets">'+cfg.bullets.map(function(b){return '<li>'+b+'</li>';}).join('')+'</ul>';
+    var t1='<table class="cj-tbl"><tr><th>统计时间</th><th>业务类型</th><th>订单量</th><th>消费金额/元</th><th>消费金额占比</th><th>消费金额同比</th></tr>'
+      + cfg.rows.map(function(r,i){ var first=(i===0)?'<td rowspan="'+cfg.rows.length+'">'+cfg.period+'</td>':''; var st=(r[0].indexOf('总体')>-1)?' style="font-weight:700;background:#eef6ff"':''; return '<tr'+st+'>'+first+'<td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+cjEntNum(r[4])+'</td></tr>'; }).join('') + '</table>';
+    var t2='<table class="cj-tbl"><tr><th>业务类型</th><th>节约金额</th></tr>'
+      + cfg.saving.map(function(s){ var st=(s[0].indexOf('总')>-1)?' style="font-weight:700;background:#eef6ff"':''; return '<tr'+st+'><td>'+s[0]+'</td><td>'+s[1]+'</td></tr>'; }).join('') + '</table>';
+    var dual='<div class="row" style="align-items:flex-start;gap:24px;margin-top:4px"><div style="flex:2.6;min-width:520px">'+t1+'</div><div style="flex:1;min-width:220px">'+t2+'</div></div>';
+    var tb='<div class="cj-banner" style="margin-top:26px"><h2>'+cfg.trend.title+'</h2><span class="cj-logo">差 旅 壹 号 · YiHao</span></div>';
+    var tsub='<ul class="cj-bullets"><li>'+cfg.trend.sub+'</li></ul>';
+    var chart=vbar(cfg.trend.labels.map(function(l,i){return {label:l,val:cfg.trend.vals[i],disp:nf(cfg.trend.vals[i],2)+'万'};}),{color:C.blue,unit:'万',barw:cfg.trend.barw||30});
+    return banner+bullets+dual+tb+tsub+chart;
+  }
+  function cjEntFilter(kind){
+    var d;
+    if(kind==='month') d='<div class="filter-item"><label>交易月度</label><div class="ctrl date">2026年5月</div></div>';
+    else if(kind==='quarter') d='<div class="filter-item"><label>交易季度</label><div class="ctrl date">2026年第1季度</div></div>';
+    else if(kind==='year') d='<div class="filter-item"><label>交易年度</label><div class="ctrl date">2025年</div></div>';
+    else d='<div class="filter-item"><label>开始月份</label><div class="ctrl date">2026年5月</div></div><div class="filter-item"><label>结束月份</label><div class="ctrl date">2026年5月</div></div>';
+    return '<div class="filter-row" style="padding:4px 0 8px">'+d
+      +'<div class="filter-item"><label>成本中心</label><div class="ctrl"><span class="ph">请选择成本中心</span><span class="caret">∨</span></div></div>'
+      +'<div class="filter-item"><label>核算单元</label><div class="ctrl"><span class="ph">请选择核算单元</span><span class="caret">∨</span></div></div>'
+      +'<div class="filter-item"><label>企业名称</label><div class="ctrl"><span class="ph">请选择企业名称</span><span class="caret">∨</span></div></div>'
+      +'<button class="btn btn-reset">重置</button><button class="btn btn-query">查询</button></div>';
+  }
+  function cjEnt(kind, data){
+    var bar='<div class="cj-tabbar"><span class="active" data-tab="all">整体</span><span data-tab="air">机票</span><span data-tab="hotel">酒店</span><span data-tab="train">火车</span><span data-tab="car">用车</span></div>';
+    var panes='<div class="cj-pane active" data-tab="all">'+cjEntReport(data)+'</div>'
+      + '<div class="cj-pane" data-tab="air">'+cjAir(CJR_AIR[kind])+'</div>'
+      + '<div class="cj-pane" data-tab="hotel">'+cjHotel(CJR_HOTEL[kind])+'</div>'
+      + '<div class="cj-pane" data-tab="train">'+cjTrain(CJR_TRAIN[kind])+'</div>'
+      + '<div class="cj-pane" data-tab="car">'+cjCar(CJR_CAR[kind])+'</div>';
+    return '<div class="cj-tabs">'+bar+panes+'</div>'
+      + reqbox([{t:'<b>企业站 · 集采报告</b>：月报 / 季报 / 年报 / 可选月年报，每张报告含 <b>整体 / 机票 / 酒店 / 火车 / 用车</b> 五个页签；「整体」为集采额 / 节约 / 同比汇总 + 消费趋势，其余页签为对应资源在所选周期内的集采明细 — ✅本页已补全', id:'—', tag:'新增'}]);
+  }
+  function bindCjTabs(root){
+    if(!root) return;
+    root.querySelectorAll('.cj-tabs').forEach(function(box){
+      var bar=box.querySelector('.cj-tabbar'); if(!bar) return;
+      bar.querySelectorAll('span').forEach(function(t){
+        t.addEventListener('click',function(){
+          var k=t.getAttribute('data-tab');
+          bar.querySelectorAll('span').forEach(function(x){ x.classList.toggle('active', x===t); });
+          box.querySelectorAll('.cj-pane').forEach(function(p){ p.classList.toggle('active', p.getAttribute('data-tab')===k); });
+        });
+      });
+    });
+  }
+
+  /* ---------- 集采报告（企业站）· 资源页签：周期专属渲染（月/季/年/可选） ---------- */
+  var CJC=[C.blue,C.orange,C.teal,C.purple,C.meal,'#9fb4ff','#ffd27f','#b0e3a8'];
+  function cjDays(n){ var a=[]; for(var i=1;i<=n;i++) a.push(i+''); return a; }
+  function cjMonths(yr){ var a=[]; for(var i=1;i<=12;i++) a.push(yr+'-'+i); return a; }
+  function cjPie(items){ return {segs:items.map(function(x){return {pct:x.pct,color:x.color};}), leg:items.map(function(x){return {color:x.color,label:x.label+'('+x.pct+'%)'};})}; }
+  function cjBanner(t){ return '<div class="cj-banner" style="margin-top:22px"><h2>'+t+'</h2><span class="cj-logo">差 旅 壹 号 · YiHao</span></div>'; }
+  function cjBull(arr){ return '<ul class="cj-bullets">'+arr.map(function(b){return '<li>'+b+'</li>';}).join('')+'</ul>'; }
+  function cjMiniDonut(label,pct,color){ return '<div style="text-align:center"><div class="sec-title" style="margin-bottom:8px">'+label+'</div>'+donut([{pct:pct,color:color},{pct:100-pct,color:'#edeff4'}],[{color:color,label:label+' '+pct.toFixed(2)+'%'}])+'</div>'; }
+  function cjTbl(head,rows,boldLast){ return tableW(thead(head)+rows.map(function(r,i){return trow(r, !!boldLast&&i===rows.length-1);}).join('')); }
+  function cjTrend(c){
+    var bars=c.labels.map(function(l,i){ var pr=(typeof c.prices==='number')?c.prices:c.prices[i];
+      return {label:l, val:c.counts[i], disp:''+c.counts[i], tip:l+'||'+c.clab+'：'+c.counts[i]+'||'+c.plab+'：¥'+nf(pr,2)}; });
+    return vbar(bars,{color:C.blue, barw:c.barw||30});
+  }
+  function cjAir(P){
+    var donuts='<div style="display:flex;flex-direction:column;gap:18px;flex:0 0 200px">'+cjMiniDonut('退票率',P.tk,C.blue)+cjMiniDonut('改签率',P.gq,C.orange)+'</div>';
+    var s=cjBanner(P.head)+cjBull(P.bullets)
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:480px">'+cjTbl(P.sumHead,P.sumRows,true)+'</div>'+donuts+'</div>'
+      + '<div class="hint" style="margin-top:6px">注：退票率=退票张数/出票张数，改签率=改签张数/出票张数</div>'
+      + cjBanner(P.pd+'机票月度出票量和均价情况')+cjBull([P.chartSub])+cjTrend(P.chart);
+    if(P.hangsi) s+=cjBanner(P.pd+'热门航司消费情况')+cjBull(['<b>'+P.pd+'</b>热门航司出行 TOP10'])+cjTbl(['航司名称','出票张数','消费金额','票均消费金额','国内票价折扣'],P.hangsi);
+    if(P.hangxian) s+=cjBanner(P.pd+'热门航线消费情况')+cjBull(['<b>'+P.pd+'</b>热门航线出行 TOP10'])+cjTbl(['航线名称','出票张数','消费金额','出票占比','国内折扣'],P.hangxian);
+    if(P.advance) s+=cjBanner(P.advHead)+cjTbl(['提前预订天数','出票张数','出票占比','消费金额/元','平均折扣'],P.advance);
+    s+=cjBanner('通过航司协议及差标提醒，节约成本 '+P.saveW+' 万元')+cjBull(['<b>'+P.pd+'</b>机票通过航司协议、SME 协议及差标提醒，合计节约成本 <b>'+P.saveW+' 万元</b>']);
+    return s;
+  }
+  function cjHotel(P){
+    var s=cjBanner(P.head)+cjBull(P.bullets)
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:480px">'+cjTbl(P.sumHead,P.sumRows,true)+'</div><div style="flex:0 0 220px">'+cjMiniDonut('退订间夜率',P.tt,C.orange)+'</div></div>'
+      + cjBanner(P.pd+'酒店月度间夜量和均价情况')+cjBull([P.chartSub])+cjTrend(P.chart);
+    if(P.types) s+=cjBanner(P.pd+'各类型酒店入住消费情况')+cjBull([P.typeSub])
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:460px">'+cjTbl(['酒店类型','入住间夜','间夜占比','消费金额/元','预订均价/元'],P.types,true)+'</div>'
+      + '<div style="flex:0 0 240px"><div class="sec-title">酒店类型入住分布(间夜)</div>'+donut(P.typeDonut.segs,P.typeDonut.leg)+'</div></div>';
+    if(P.save) s+=cjBanner(P.pd+'酒店集采节省情况')+cjBull([P.saveSub])
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:420px">'+cjTbl(['节省类型','节省金额','节省金额占比','间均节省'],P.save,true)+'</div>'
+      + '<div style="flex:0 0 240px"><div class="sec-title">酒店节省分布(节省金额)</div>'+donut(P.saveDonut.segs,P.saveDonut.leg)+'</div></div>';
+    return s;
+  }
+  function cjTrain(P){
+    var donuts='<div style="display:flex;flex-direction:column;gap:18px;flex:0 0 200px">'+cjMiniDonut('退票率',P.tk,C.blue)+cjMiniDonut('改签率',P.gq,C.orange)+'</div>';
+    var s=cjBanner(P.head)+cjBull(P.bullets)
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:480px">'+cjTbl(P.sumHead,P.sumRows,true)+'</div>'+donuts+'</div>'
+      + '<div class="hint" style="margin-top:6px">注：退票率=退票张数/出票张数，改签率=改签张数/出票张数</div>'
+      + cjBanner(P.pd+'火车票月度出票量和均价情况')+cjBull([P.chartSub])+cjTrend(P.chart);
+    if(P.seats) s+=cjBanner(P.pd+'火车票消费坐席类型分析')+cjBull([P.seatSub])
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:460px">'+cjTbl(['坐席类型','出票张数','出票占比','消费金额/元','预订平均票面价'],P.seats,true)+'</div>'
+      + '<div style="flex:0 0 240px"><div class="sec-title">坐席订单量占比</div>'+donut(P.seatDonut.segs,P.seatDonut.leg)+'</div></div>';
+    if(P.lines) s+=cjBanner(P.pd+'火车热门出行线路 TOP10')+cjTbl(['出行线路','出票张数','出票占比','消费金额/元','预订均价'],P.lines);
+    return s;
+  }
+  function cjCar(P){
+    var s=cjBanner(P.head)+cjBull(P.bullets)
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:460px">'+cjTbl(['用车类型','出行次数','出行占比','消费金额/元','行程均价'],P.types,true)+'</div>'
+      + '<div style="flex:0 0 260px"><div class="sec-title">用车类型出行分布</div>'+vbar(P.typeBar,{color:C.blue,barw:34})+'</div></div>'
+      + cjBanner(P.pd+'用车次数、行程均价情况')+cjBull([P.chartSub])+cjTrend(P.chart);
+    if(P.models) s+=cjBanner(P.pd+'用车出行各车型消费情况')+cjBull([P.modelSub])
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:440px">'+cjTbl(['用车车型','出行次数','出行占比','消费金额/元','行程均价'],P.models,true)+'</div>'
+      + '<div style="flex:0 0 240px"><div class="sec-title">用车车型出行占比</div>'+donut(P.modelDonut.segs,P.modelDonut.leg)+'</div></div>';
+    if(P.plats) s+=cjBanner(P.pd+'用车出行平台消费情况')+cjBull(['<b>'+P.pd+'</b>用车平台消费 TOP10'])
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:440px">'+cjTbl(['用车平台','出行次数','出行占比','消费金额/元','行程均价'],P.plats)+'</div>'
+      + '<div style="flex:0 0 240px"><div class="sec-title">用车平台出行占比</div>'+donut(P.platDonut.segs,P.platDonut.leg)+'</div></div>';
+    if(P.scenes) s+=cjBanner(P.pd+'用车出行场景消费分析')+cjBull(['<b>'+P.pd+'</b>用车出行场景消费 TOP10'])
+      + '<div class="row" style="align-items:flex-start;gap:20px"><div style="flex:1;min-width:440px">'+cjTbl(['用车场景','出行次数','出行占比','消费金额/元','行程均价'],P.scenes)+'</div>'
+      + '<div style="flex:0 0 240px"><div class="sec-title">用车场景出行占比</div>'+donut(P.sceneDonut.segs,P.sceneDonut.leg)+'</div></div>';
+    return s;
+  }
+  /* ----- 机票数据（月/季/年） ----- */
+  var _AIR_M={ pd:'2026年5月', head:'2026年5月机票集采超 10.95 万元，退改率高于平台数据',
+    bullets:['2026年5月机票消费 <b>109,562.00元</b>','2026年5月机票出票 <b>30张</b>，退票 <b>9张</b>，改签 <b>0张</b>','贵司：退票率 <b>30.00%</b>，改签率 <b>0%</b>　商旅平台：退票率 7.11%，改签率 2.92%'],
+    sumHead:['机票','票张数','票张数占比','消费金额/元','改签手续费','均价/元'],
+    sumRows:[['出票','30','76.92%','119,086.00','0.00','3,969.53'],['退票','9','23.08%','-13,626.00','3,094.00','-1,514.00'],['合计','39','100%','105,460.00','3,094.00','2,704.10']],
+    tk:30.00, gq:0.00, chartSub:'5月机票出票趋势，其中日度出票量峰值达 <b>4张</b>，日度均价最高达 <b>16,010.00元</b>',
+    chart:{labels:cjDays(31), counts:[1,0,2,0,1,3,0,1,0,0,2,1,0,4,0,1,0,1,1,0,0,2,1,0,1,2,0,1,0,1,1], prices:3969, clab:'出票张数', plab:'预订均价', barw:14},
+    hangsi:[['国航','16','3.36万','2,100.00','0.30'],['东航','4','0.74万','1,857.00','0.36'],['南航','3','0.33万','1,100.00','0.19'],['川航','3','0.20万','670.00','0.77'],['深航','1','0.13万','1,300.00','0.32'],['其他','3','0.31万','1,033.00','0.41']],
+    hangxian:[['成都-北京','5','1.20万','16.67%','0.31'],['上海-成都','4','0.95万','13.33%','0.29'],['北京-上海','3','0.66万','10.00%','0.34'],['深圳-成都','3','0.41万','10.00%','0.40'],['其他','15','6.86万','50.00%','0.36']],
+    advHead:'2026年5月机票提前预订天数分布',
+    advance:[['0-0','1','20.00%','9,080.00','-'],['1-1','5','16.67%','6,157.00','0.29'],['2-4','14','46.67%','15,603.00','0.38'],['5-8','2','6.67%','6,638.00','-'],['9-14','5','16.67%','36,084.00','-'],['≥15','1','3.33%','32,077.00','-']],
+    saveW:'0.03' };
+  var _AIR_Q={ pd:'2026年Q1', head:'2026年Q1机票交易量超 39.04 万元，退改率高于平台数据',
+    bullets:['2026年Q1机票消费 <b>390,412.00元</b>','Q1机票出票 <b>169张</b>，退票 <b>23张</b>，改签 <b>2张</b>','贵司：退票率 <b>13.61%</b>，改签率 <b>1.18%</b>　商旅平台：退票率 7.02%，改签率 3.1%'],
+    sumHead:['机票','票张数','票张数占比','消费金额/元','退改手续费','均价/元'],
+    sumRows:[['出票','169','87.11%','435,541.00','0.00','2,577.17'],['改签','2','1.03%','700.00','400.00','350.00'],['退票','23','11.86%','-45,829.00','-33,739.00','-1,992.57'],['合计','194','100%','390,412.00','34,139.00','2,012.43']],
+    tk:13.61, gq:1.18, chartSub:'2026年Q1出票趋势，其中月度出票量峰值达 <b>82张</b>，月度均价最高达 <b>2,683.89元</b>',
+    chart:{labels:['2026-1','2026-2','2026-3'], counts:[82,32,55], prices:[2471.72,1761.83,2683.89], clab:'出票张数', plab:'预订均价', barw:54},
+    hangsi:[['海航','5','0.39万','778.00','0.22'],['东航','4','0.33万','563.00','0.26'],['川航','3','0.56万','1,863.00','0.30'],['南航','2','0.23万','1,000.00','0.38'],['吉祥','1','0.05万','500.00','0.55']],
+    hangxian:[['成都-北京','22','5.41万','13.02%','0.31'],['上海-成都','15','3.62万','8.88%','0.29'],['北京-深圳','12','2.95万','7.10%','0.33'],['深圳-成都','9','1.88万','5.33%','0.40'],['其他','111','24.60万','65.67%','0.34']],
+    advHead:'64% 的机票在出行前 4 天内预订，建议提前做好出行规划',
+    advance:[['0-0','22','13.02%','46,000.00','-'],['1-1','30','17.75%','58,000.00','0.29'],['2-4','56','33.14%','98,000.00','0.38'],['5-8','24','14.20%','62,000.00','-'],['9-14','21','12.43%','64,000.00','-'],['≥15','16','9.47%','62,412.00','-']],
+    saveW:'1.15' };
+  var _AIR_Y={ pd:'2025年', head:'2025年机票交易量超 137.41 万元，退改率高于平台数据',
+    bullets:['2025年机票消费 <b>1,374,193.00元</b>','2025年机票出票 <b>625张</b>，退票 <b>108张</b>，改签 <b>58张</b>','贵司：退票率 <b>17.28%</b>，改签率 <b>9.28%</b>　商旅平台：退票率 7.68%，改签率 3.22%'],
+    sumHead:['机票','票张数','票张数占比','消费金额/元','退改手续费','均价/元'],
+    sumRows:[['出票','625','78.91%','1,525,871.00','0.00','2,441.39'],['改签','58','7.32%','65,922.00','11,202.00','1,136.59'],['退票','108','13.64%','-217,148.00','53,336.00','-2,010.63'],['差额退款','1','0.13%','-452.00','-452.00','-452.00'],['合计','792','100%','1,374,193.00','64,086.00','1,735.09']],
+    tk:17.28, gq:9.28, chartSub:'2025年机票出票趋势，其中月度出票量峰值达 <b>109张</b>，月度均价最高达 <b>4,788.40元</b>',
+    chart:{labels:cjMonths('2025'), counts:[46,36,64,38,48,44,42,62,109,51,52,53], prices:[3789,3629,1954,2220,4788,1750,3087,2080,4231,1601,1901,1242], clab:'出票张数', plab:'预订均价', barw:34},
+    hangsi:[['国航','272','58.50万','2,150.00','0.29'],['东航','139','28.00万','2,014.00','0.31'],['南航','55','12.40万','2,254.00','0.31'],['川航','38','7.60万','2,000.00','0.34'],['深航','14','3.00万','2,143.00','0.32'],['其他','107','27.90万','—','0.41']],
+    hangxian:[['成都-北京','272','40.90万','29.99%','0.31'],['上海-成都','110','18.40万','12.13%','0.29'],['北京-深圳','49','9.80万','5.40%','0.33'],['深圳-成都','47','9.00万','5.18%','0.30'],['其他','314','58.90万','47.30%','0.34']],
+    advHead:'2025年机票提前预订天数分布',
+    advance:[['0-0','79','12.64%','190,000.00','-'],['1-1','118','18.88%','250,000.00','0.30'],['2-4','205','32.80%','480,000.00','0.38'],['5-8','98','15.68%','210,000.00','-'],['9-14','82','13.12%','150,000.00','-'],['≥15','43','6.88%','94,193.00','-']],
+    saveW:'3.27' };
+  var CJR_AIR={ month:_AIR_M, quarter:_AIR_Q, year:_AIR_Y, optional:Object.assign({},_AIR_M,{pd:'2026年5-5月', head:'2026年5-5月机票集采超 10.95 万元，退改率高于平台数据', advHead:'2026年5-5月机票提前预订天数分布'}) };
+  /* ----- 酒店数据 ----- */
+  var _HT_M={ pd:'2026年5月', head:'2026年5月酒店集采超过 2.79 万元',
+    bullets:['2026年5月酒店集采 <b>27,867.00元</b>，同比去年下降 <span class="cj-down">-67.48%</span>','国内酒店预订 <b>98间夜</b>，占总预订间夜 89.91%','退订 <b>37间夜</b>，占总间夜数 33.94%','预订间夜均价 <b>557.45元</b>（平台预订间夜均价 356.09元）'],
+    sumHead:['酒店','入住间夜','消费金额/元','预订均价/元','差旅服务费/元'],
+    sumRows:[['预订','109','60,762.00','557.45','32.00'],['退订','-37','-32,895.00','-','0.00'],['总体消费','72','27,867.00','-','32.00']],
+    tt:33.94, chartSub:'2026年5月酒店预订趋势，日度预订间夜峰值达 <b>18间</b>，预订间夜均价达 <b>557.45元</b>',
+    chart:{labels:cjDays(31), counts:[4,2,5,6,3,8,5,2,4,1,10,3,6,2,18,4,3,5,7,2,1,3,2,1,3,2,1,2,2,4,2], prices:557, clab:'预订间夜', plab:'间夜均价', barw:14},
+    typeSub:'四星级酒店入住间夜比 40.28%，消费金额占比 69.29%，预订均价 804.81元',
+    types:[['二星经济型及以下','15','13.76%','3,200.00','213.33'],['三星(舒适型)','22','20.18%','5,400.00','245.45'],['四星(高档型)','44','40.28%','19,310.00','438.86'],['五星(豪华型)','28','25.69%','32,852.00','1,173.29'],['合计','109','100%','60,762.00','557.45']],
+    typeDonut:cjPie([{label:'二星经济型及以下',pct:13.76,color:CJC[0]},{label:'三星(舒适型)',pct:20.18,color:CJC[1]},{label:'四星(高档型)',pct:40.28,color:CJC[2]},{label:'五星(豪华型)',pct:25.69,color:CJC[3]}]),
+    saveSub:'2026年5月酒店集采节省 0.42万元', save:[['集团协议节省','1,190.00元','28.61%','59.50元'],['OTA节省','2,577.00元','61.95%','43.68元'],['拼房节省','393.00元','9.45%','-'],['合计','4,160.00元','100%','-']],
+    saveDonut:cjPie([{label:'集团协议节省',pct:28.61,color:CJC[3]},{label:'OTA节省',pct:61.95,color:CJC[2]},{label:'拼房节省',pct:9.45,color:CJC[0]}]) };
+  var _HT_Q={ pd:'2026年Q1', head:'2026年Q1酒店集采超过 22.56 万元',
+    bullets:['2026年Q1酒店集采 <b>225,580.07元</b>，同比去年增长 <span class="cj-up">35.52%</span>','国内酒店预订 <b>435间夜</b>，占总预订间夜 95.19%','退订 <b>50间夜</b>，占总间夜数 10.94%','预订间夜均价 <b>554.41元</b>（平台预订间夜均价 338.10元）'],
+    sumHead:['酒店','入住间夜','消费金额/元','预订均价/元','差旅服务费/元'],
+    sumRows:[['预订','457','253,363.17','554.41','217.00'],['退订','-50','-27,783.10','-','-1.00'],['总体消费','407','225,580.07','-','216.00']],
+    tt:10.94, chartSub:'2026年Q1酒店预订趋势，月度预订间夜峰值达 <b>211间</b>，预订间夜均价达 <b>554.41元</b>',
+    chart:{labels:['2026-1','2026-2','2026-3'], counts:[211,95,151], prices:[599.04,596.91,465.29], clab:'预订间夜', plab:'间夜均价', barw:54},
+    typeSub:'四星级酒店入住间夜比 40.29%，消费金额占比 48.76%，预订均价 670.73元',
+    types:[['二星经济型及以下','62','15.23%','13,500.00','217.74'],['三星(舒适型)','94','23.10%','42,800.00','455.32'],['四星(高档型)','164','40.29%','110,000.00','670.73'],['五星(豪华型)','87','21.38%','59,280.07','681.38'],['合计','407','100%','225,580.07','554.41']],
+    typeDonut:cjPie([{label:'二星经济型及以下',pct:15.23,color:CJC[0]},{label:'三星(舒适型)',pct:23.10,color:CJC[1]},{label:'四星(高档型)',pct:40.29,color:CJC[2]},{label:'五星(豪华型)',pct:21.38,color:CJC[3]}]),
+    saveSub:'2026年Q1酒店集采节省 1.16万元，间均节省 39.22元，间均节省率 7.34%（平台 7.88%）', save:[['集团协议节省','3,973.00元','34.22%','47.87元'],['OTA节省','7,221.10元','62.2%','33.90元'],['拼房节省','416.00元','3.58%','-'],['合计','11,610.10元','100%','-']],
+    saveDonut:cjPie([{label:'集团协议节省',pct:34.22,color:CJC[3]},{label:'OTA节省',pct:62.2,color:CJC[2]},{label:'拼房节省',pct:3.58,color:CJC[0]}]) };
+  var _HT_Y={ pd:'2025年', head:'2025年酒店集采超过 91.79 万元',
+    bullets:['2025年酒店集采 <b>917,949.86元</b>，同比去年下降 <span class="cj-down">-3.06%</span>','国内酒店预订 <b>2,195间夜</b>，占总预订间夜 95.45%','退订 <b>285间夜</b>，占总间夜数 12.39%','预订间夜均价 <b>471.63元</b>（平台预订间夜均价 355.35元）'],
+    sumHead:['酒店','入住间夜','消费金额/元','预订均价/元','差旅服务费/元'],
+    sumRows:[['预订','2,300','1,084,751.80','471.63','224.00'],['退订','-285','-166,801.94','-','-5.00'],['总体消费','2,015','917,949.86','-','224.00']],
+    tt:12.39, chartSub:'2025年酒店预订趋势，月度预订间夜峰值达 <b>330间</b>，预订间夜均价达 <b>471.63元</b>',
+    chart:{labels:cjMonths('2025'), counts:[150,102,201,165,128,210,160,175,260,224,330,270], prices:[413.84,461.66,365.67,411.75,470.61,419.76,524.24,435.06,464.71,411.75,440.00,431.73], clab:'预订间夜', plab:'间夜均价', barw:34},
+    typeSub:'三星级酒店入住间夜比 46.11%，消费金额占比 46%，预订均价 456.42元',
+    types:[['二星经济型及以下','458','22.73%','171,336.00','430.06'],['三星(舒适型)','929','46.11%','422,251.05','456.42'],['四星(高档型)','543','26.95%','264,542.31','494.24'],['五星(豪华型)','84','4.17%','59,574.50','710.65'],['其他','1','0.05%','246.00','246.00'],['合计','2,015','100%','917,949.86','471.63']],
+    typeDonut:cjPie([{label:'二星经济型及以下',pct:22.73,color:CJC[0]},{label:'三星(舒适型)',pct:46.11,color:CJC[1]},{label:'四星(高档型)',pct:26.95,color:CJC[2]},{label:'五星(豪华型)',pct:4.17,color:CJC[3]},{label:'其他',pct:0.05,color:CJC[4]}]),
+    saveSub:'2025年酒店集采节省 7.43万元，间均节省 31.35元，间均节省率 8.47%（平台 10.55%）', save:[['集团协议节省','25,803.00元','34.72%','32.70元'],['集体协议节省','8,463.00元','11.39%','64.60元'],['OTA节省','22,026.35元','29.64%','15.72元'],['拼房节省','18,018.00元','24.25%','-'],['合计','74,310.35元','100%','-']],
+    saveDonut:cjPie([{label:'集团协议节省',pct:34.72,color:CJC[3]},{label:'集体协议节省',pct:11.39,color:CJC[5]},{label:'OTA节省',pct:29.64,color:CJC[2]},{label:'拼房节省',pct:24.25,color:CJC[0]}]) };
+  var CJR_HOTEL={ month:_HT_M, quarter:_HT_Q, year:_HT_Y, optional:Object.assign({},_HT_M,{pd:'2026年5-5月', head:'2026年5-5月酒店集采超过 2.79 万元'}) };
+  /* ----- 火车数据 ----- */
+  var _TR_M={ pd:'2026年5月', head:'2026年5月火车票消费数据分析',
+    bullets:['2026年5月火车票消费总额超过 <b>1.11万元</b>','火车票出票合计 <b>67张</b>，退票 <b>7张</b>，改签 <b>7张</b>，合计消费金额 <b>11,101.00元</b>','退票率 <b>10.45%</b>，改签率 <b>10.45%</b>（平台退票率 7.35%，改签率 9.28%）','火车票预订均票面价 <b>179.55元</b>（平台预订票均票面价 186.74元）'],
+    sumHead:['火车票','票张数','票张数占比','消费金额/元','退改手续费','预订票均票面价'],
+    sumRows:[['出票','67','82.72%','12,030.00','0.00','179.55'],['改签','7','8.64%','785.00','0.00','-'],['退票','7','8.64%','-1,714.00','33.00','-'],['整体消费','81','100.00%','11,101.00','33.00','179.55']],
+    tk:10.45, gq:10.45, chartSub:'2026年5月出票趋势，其中日度出票峰值达 <b>7张</b>，预订票均票面价达 <b>179.55元</b>',
+    chart:{labels:cjDays(31), counts:[2,1,0,3,0,4,1,3,0,2,5,1,7,0,2,1,3,0,4,2,1,0,3,2,1,0,2,1,0,3,1], prices:179, clab:'出票张数', plab:'预订均价', barw:14},
+    seatSub:'其他订单数量占总订单数量的 10.45%',
+    seats:[['一等座','3','4.48%','267.00','118.33'],['二等座','57','85.07%','10,354.00','191.95'],['其他','7','10.45%','480.00','104.86'],['合计','67','100.00%','11,101.00','179.55']],
+    seatDonut:cjPie([{label:'一等座',pct:4.48,color:CJC[3]},{label:'二等座',pct:85.07,color:CJC[0]},{label:'其他',pct:10.45,color:CJC[1]}]),
+    lines:[['武汉-上海','3','4.48%','1,073.00','357.67'],['齐齐哈尔-哈尔滨','3','4.48%','294.00','98.00'],['北京-天津','2','2.99%','228.50','71.25'],['北京-太原','2','2.99%','396.00','198.00'],['北京-长春','2','2.99%','528.00','503.00'],['成都-重庆','2','2.99%','326.00','163.00'],['济南-北京','2','2.99%','394.00','197.00'],['深圳-厦门','2','2.99%','458.00','229.00']] };
+  var _TR_Q={ pd:'2026年Q1', head:'2026年Q1火车票消费数据分析',
+    bullets:['2026年Q1火车票消费总额超过 <b>3.74万元</b>','火车票出票合计 <b>177张</b>，退票 <b>7张</b>，改签 <b>31张</b>，合计消费金额 <b>37,427.00元</b>','退票率 <b>3.95%</b>，改签率 <b>17.51%</b>（平台退票率 6.96%，改签率 3.95%）','火车票预订均票面价 <b>202.41元</b>（平台预订票均票面价 196.19元）'],
+    sumHead:['火车票','票张数','票张数占比','消费金额/元','退改手续费','预订票均票面价'],
+    sumRows:[['出票','177','81.94%','35,826.50','0.00','202.41'],['改签','31','14.35%','8,355.00','194.50','-'],['退票','7','3.24%','-6,750.50','153.00','-'],['差额退款','1','0.46%','-4.00','0.00','-'],['整体消费','216','100.00%','37,427.00','347.50','202.41']],
+    tk:3.95, gq:17.51, chartSub:'2026年Q1出票趋势，其中月度出票峰值达 <b>79张</b>，预订票均票面价达 <b>228.74元</b>',
+    chart:{labels:['2026-1','2026-2','2026-3'], counts:[73,25,79], prices:[170.13,156.00,228.74], clab:'出票张数', plab:'预订均价', barw:54},
+    seatSub:'其他订单数量占总订单数量的 5.08%',
+    seats:[['一等座','3','1.69%','1,584.00','226.67'],['二等座','165','93.22%','28,523.00','182.81'],['其他','9','5.08%','7,320.00','553.67'],['合计','177','100.00%','37,427.00','202.41']],
+    seatDonut:cjPie([{label:'一等座',pct:1.69,color:CJC[3]},{label:'二等座',pct:93.22,color:CJC[0]},{label:'其他',pct:5.08,color:CJC[1]}]),
+    lines:[['上海-武汉','6','3.39%','2,234.00','372.33'],['广州-深圳','7','3.95%','398.00','56.86'],['成都-重庆','5','2.82%','812.00','159.80'],['重庆-成都','5','2.82%','848.50','149.80'],['长春-北京','5','2.82%','2,530.00','506.00'],['齐齐哈尔-哈尔滨','5','2.82%','490.00','98.00'],['北京-天津','4','2.26%','331.00','82.75']] };
+  var _TR_Y={ pd:'2025年', head:'2025年火车票消费数据分析',
+    bullets:['2025年火车票消费总额超过 <b>17.61万元</b>','火车票出票合计 <b>907张</b>，退票 <b>97张</b>，改签 <b>134张</b>，合计消费金额 <b>176,122.66元</b>','退票率 <b>10.69%</b>，改签率 <b>14.77%</b>（平台退票率 7.45%，改签率 11.19%）','火车票预订均票面价 <b>217.66元</b>（平台预订票均票面价 203.02元）'],
+    sumHead:['火车票','票张数','票张数占比','消费金额/元','退改手续费','预订票均票面价'],
+    sumRows:[['出票','907','79.42%','196,842.12','0.00','217.66'],['改签','134','11.73%','30,840.50','274.00','-'],['退票','97','8.49%','-51,506.96','3,417.50','-'],['差额退款','4','0.35%','-53.00','0.00','-'],['整体消费','1,142','100.00%','176,122.66','3,691.50','217.66']],
+    tk:10.69, gq:14.77, chartSub:'2025年出票趋势，其中月度出票峰值达 <b>104张</b>，预订票均票面价达 <b>217.66元</b>',
+    chart:{labels:cjMonths('2025'), counts:[104,36,98,59,78,91,77,56,88,68,84,67], prices:[170.13,162.23,237.08,59.00,237.08,205.00,179.18,275.90,269.71,179.18,182.47,229.53], clab:'出票张数', plab:'预订均价', barw:34},
+    seatSub:'其他订单数量占总订单数量的 9.81%',
+    seats:[['一等座','18','1.98%','7,332.05','184.72'],['二等座','783','86.33%','154,932.50','221.63'],['其他','89','9.81%','12,722.11','217.53'],['硬卧','17','1.87%','1,136.00','70.15'],['合计','907','100.00%','176,122.66','217.66']],
+    seatDonut:cjPie([{label:'一等座',pct:1.98,color:CJC[3]},{label:'二等座',pct:86.33,color:CJC[0]},{label:'其他',pct:9.81,color:CJC[1]},{label:'硬卧',pct:1.87,color:CJC[4]}]),
+    lines:[['上海-杭州','47','5.18%','3,342.00','80.45'],['哈尔滨-齐齐哈尔','42','4.63%','4,116.00','98.00'],['齐齐哈尔-哈尔滨','42','4.63%','4,116.00','96.00'],['北京-武汉','32','3.53%','18,766.50','615.19'],['深圳-广州','32','3.53%','1,864.50','59.34'],['武汉-北京','30','3.31%','16,828.00','610.93'],['广州-深圳','28','3.09%','1,552.50','55.45']] };
+  var CJR_TRAIN={ month:_TR_M, quarter:_TR_Q, year:_TR_Y, optional:Object.assign({},_TR_M,{pd:'2026年5-5月', head:'2026年5-5月火车票消费数据分析'}) };
+  /* ----- 用车数据 ----- */
+  var _CAR_M={ pd:'2026年5月', head:'2026年5月用车集采消费情况',
+    bullets:['2026年5月用车交易金额 <b>119,563.08元</b>','共计出行 <b>3,125次</b>，行程均价 38.26元（平台行程均价 54.46元）','主要业务类型为实时用车，占比 99.01%'],
+    types:[['实时用车','3,094','99.01%','116,515.60','37.66'],['预约用车','25','0.80%','2,358.34','94.33'],['接送机','4','0.13%','640.44','160.11'],['接送站','2','0.06%','48.70','24.35'],['合计','3,125','100.00%','119,563.08','38.26']],
+    typeBar:[{label:'实时用车',val:99.01,disp:'99.01%'},{label:'预约用车',val:0.80,disp:'0.80%'},{label:'接送机',val:0.13,disp:'0.13%'},{label:'接送站',val:0.06,disp:'0.06%'}],
+    chartSub:'2026年5月用车出行趋势，日度出行峰值达 <b>161次</b>，月度行程均价最高达 <b>45.40元</b>',
+    chart:{labels:cjDays(31), counts:[67,37,36,28,31,89,137,132,106,108,66,148,139,144,119,67,51,140,158,142,129,78,55,116,136,127,161,127,66,52,60], prices:38, clab:'用车次数', plab:'行程均价', barw:14},
+    modelSub:'经济型用车次数占比 43.84%，消费金额占比 40.55%，价均 35.40元',
+    models:[['经济型','1,370','43.84%','48,482.11','35.40'],['舒适型','1,692','54.14%','64,336.21','38.02'],['商务型','63','2.02%','6,744.76','107.06'],['合计','3,125','100.00%','119,563.08','38.26']],
+    modelDonut:cjPie([{label:'经济型',pct:43.84,color:CJC[1]},{label:'舒适型',pct:54.14,color:CJC[0]},{label:'商务型',pct:2.02,color:CJC[3]}]),
+    plats:[['滴滴出行','2,238','71.62%','84,864.62','37.93'],['曹操出行','229','7.33%','8,002.56','34.95'],['阳光出行','229','7.33%','8,994.91','39.28'],['T3出行','68','2.18%','2,597.39','38.20'],['神州专车','65','2.08%','3,123.37','48.05'],['首汽约车','64','2.05%','3,125.31','48.83'],['享道出行','54','1.73%','1,938.88','35.91'],['如祺出行','43','1.38%','1,785.69','41.53'],['曹操优享','41','1.31%','986.66','24.06'],['滴滴企业特价','15','0.48%','745.10','49.67']],
+    platDonut:cjPie([{label:'滴滴出行',pct:71.62,color:CJC[0]},{label:'曹操出行',pct:7.33,color:CJC[1]},{label:'阳光出行',pct:7.33,color:CJC[2]},{label:'T3出行',pct:2.18,color:CJC[3]},{label:'神州专车',pct:2.08,color:CJC[4]},{label:'首汽约车',pct:2.05,color:CJC[5]},{label:'其他',pct:7.41,color:CJC[6]}]),
+    scenes:[['21:30以后市内用车','2,319','74.21%','82,811.99','35.72'],['出差','389','12.45%','22,392.96','57.57'],['客满通宵班次上班用车','362','11.58%','10,992.00','30.36'],['市内因公出行','31','0.99%','1,716.72','55.38'],['商务接待','18','0.58%','1,204.28','66.90'],['会议会展','6','0.19%','445.13','74.19']],
+    sceneDonut:cjPie([{label:'21:30以后市内用车',pct:74.21,color:CJC[0]},{label:'出差',pct:12.45,color:CJC[1]},{label:'客满通宵班次上班用车',pct:11.58,color:CJC[2]},{label:'市内因公出行',pct:0.99,color:CJC[3]},{label:'商务接待',pct:0.58,color:CJC[4]},{label:'会议会展',pct:0.19,color:CJC[5]}]) };
+  var _CAR_Q={ pd:'2026年Q1', head:'2026年Q1用车集采消费情况',
+    bullets:['2026年Q1用车交易金额 <b>480,259.51元</b>','共计出行 <b>13,313次</b>，行程均价 36.13元（平台行程均价 36.07元）','主要业务类型为实时用车，占比 98.97%'],
+    types:[['实时用车','13,176','98.97%','468,020.49','35.57'],['预约用车','124','0.93%','10,941.62','88.24'],['接送机','12','0.09%','1,264.85','105.40'],['接送站','1','0.01%','32.55','32.55'],['合计','13,313','100.00%','480,259.51','36.13']],
+    typeBar:[{label:'实时用车',val:98.97,disp:'98.97%'},{label:'预约用车',val:0.93,disp:'0.93%'},{label:'接送机',val:0.09,disp:'0.09%'},{label:'接送站',val:0.01,disp:'0.01%'}],
+    chartSub:'2026年Q1用车出行趋势，月度出行峰值达 <b>5,073次</b>，月度行程均价最高达 <b>36.45元</b>',
+    chart:{labels:['2026-1','2026-2','2026-3'], counts:[4853,3387,5073], prices:[36.49,36.45,35.56], clab:'用车次数', plab:'行程均价', barw:54},
+    modelSub:'舒适型用车订单占比 41.28%，消费金额占比 43.63%，均价 38.15元',
+    models:[['经济型','7,608','57.15%','241,477.20','31.74'],['舒适型','5,495','41.28%','209,545.91','38.15'],['商务型','206','1.55%','28,678.24','139.21'],['豪华型','4','0.03%','558.16','139.54'],['合计','13,313','100.00%','480,259.51','36.13']],
+    modelDonut:cjPie([{label:'经济型',pct:57.15,color:CJC[1]},{label:'舒适型',pct:41.28,color:CJC[0]},{label:'商务型',pct:1.55,color:CJC[3]},{label:'豪华型',pct:0.03,color:CJC[4]}]),
+    plats:[['滴滴出行','9,536','71.63%','339,000.00','35.55'],['曹操出行','976','7.33%','34,200.00','35.04'],['阳光出行','976','7.33%','38,400.00','39.34'],['T3出行','290','2.18%','11,000.00','37.93'],['神州专车','277','2.08%','13,300.00','48.01'],['首汽约车','273','2.05%','13,300.00','48.72'],['享道出行','230','1.73%','8,260.00','35.91'],['如祺出行','184','1.38%','7,600.00','41.30'],['曹操优享','175','1.31%','4,200.00','24.00'],['滴滴企业特价','64','0.48%','3,170.00','49.53']],
+    platDonut:cjPie([{label:'滴滴出行',pct:71.63,color:CJC[0]},{label:'曹操出行',pct:7.33,color:CJC[1]},{label:'阳光出行',pct:7.33,color:CJC[2]},{label:'T3出行',pct:2.18,color:CJC[3]},{label:'神州专车',pct:2.08,color:CJC[4]},{label:'首汽约车',pct:2.05,color:CJC[5]},{label:'其他',pct:7.40,color:CJC[6]}]),
+    scenes:[['21:30以后市内用车','8,031','60.32%','281,581.70','35.08'],['客满通宵班次上班用车','3,867','29.05%','101,247.21','26.18'],['出差','1,161','8.72%','82,040.21','71.14'],['市内因公出行','213','1.60%','11,251.67','52.96'],['会议会展','33','0.25%','2,419.52','73.32'],['商务接待','8','0.06%','1,719.20','214.90']],
+    sceneDonut:cjPie([{label:'21:30以后市内用车',pct:60.32,color:CJC[0]},{label:'客满通宵班次上班用车',pct:29.05,color:CJC[2]},{label:'出差',pct:8.72,color:CJC[1]},{label:'市内因公出行',pct:1.60,color:CJC[3]},{label:'会议会展',pct:0.25,color:CJC[5]},{label:'商务接待',pct:0.06,color:CJC[4]}]) };
+  var _CAR_Y={ pd:'2025年', head:'2025年用车集采消费情况',
+    bullets:['2025年用车交易金额 <b>1,874,085.29元</b>','共计出行 <b>50,626次</b>，行程均价 37.03元（平台行程均价 53.44元）','主要业务类型为实时用车，占比 98.80%'],
+    types:[['实时用车','50,018','98.80%','1,820,596.73','36.41'],['预约用车','546','1.08%','45,871.21','84.54'],['接送站','33','0.07%','2,248.16','68.13'],['接送机','29','0.06%','5,369.19','185.14'],['合计','50,626','100.00%','1,874,085.29','37.03']],
+    typeBar:[{label:'实时用车',val:98.80,disp:'98.80%'},{label:'预约用车',val:1.08,disp:'1.08%'},{label:'接送站',val:0.07,disp:'0.07%'},{label:'接送机',val:0.06,disp:'0.06%'}],
+    chartSub:'2025年用车出行趋势，月度出行峰值达 <b>5,448次</b>，月度行程均价最高达 <b>39.35元</b>',
+    chart:{labels:cjMonths('2025'), counts:[3773,3323,4260,4207,3759,3619,4221,4054,4700,4391,4871,5448], prices:[38.08,37.50,37.96,38.36,38.50,39.35,36.78,35.83,37.45,36.46,34.20,35.15], clab:'用车次数', plab:'行程均价', barw:34},
+    modelSub:'舒适型用车订单占比 41.28%，消费金额占比 43.22%，均价 38.76元',
+    models:[['经济型','28,945','57.17%','905,000.00','31.27'],['舒适型','20,900','41.28%','810,000.00','38.76'],['商务型','775','1.53%','157,000.00','202.58'],['豪华型','6','0.01%','2,085.29','347.55'],['合计','50,626','100.00%','1,874,085.29','37.03']],
+    modelDonut:cjPie([{label:'经济型',pct:57.17,color:CJC[1]},{label:'舒适型',pct:41.28,color:CJC[0]},{label:'商务型',pct:1.53,color:CJC[3]},{label:'豪华型',pct:0.01,color:CJC[4]}]),
+    plats:[['滴滴出行','36,258','71.62%','1,342,000.00','37.01'],['曹操出行','3,711','7.33%','127,000.00','34.22'],['阳光出行','3,711','7.33%','142,000.00','38.27'],['T3出行','1,104','2.18%','41,500.00','37.59'],['神州专车','1,053','2.08%','50,600.00','48.05'],['首汽约车','1,038','2.05%','50,700.00','48.84'],['享道出行','876','1.73%','31,400.00','35.84'],['如祺出行','699','1.38%','29,000.00','41.49'],['曹操优享','663','1.31%','15,900.00','23.98'],['滴滴企业特价','243','0.48%','12,100.00','49.79']],
+    platDonut:cjPie([{label:'滴滴出行',pct:71.62,color:CJC[0]},{label:'曹操出行',pct:7.33,color:CJC[1]},{label:'阳光出行',pct:7.33,color:CJC[2]},{label:'T3出行',pct:2.18,color:CJC[3]},{label:'神州专车',pct:2.08,color:CJC[4]},{label:'首汽约车',pct:2.05,color:CJC[5]},{label:'其他',pct:7.41,color:CJC[6]}]),
+    scenes:[['21:30以后市内用车','30,538','60.32%','1,070,000.00','35.04'],['客满通宵班次上班用车','14,707','29.05%','385,000.00','26.18'],['出差','4,414','8.72%','312,000.00','70.68'],['市内因公出行','810','1.60%','42,800.00','52.84'],['会议会展','126','0.25%','9,200.00','73.02'],['商务接待','31','0.06%','6,540.00','210.97']],
+    sceneDonut:cjPie([{label:'21:30以后市内用车',pct:60.32,color:CJC[0]},{label:'客满通宵班次上班用车',pct:29.05,color:CJC[2]},{label:'出差',pct:8.72,color:CJC[1]},{label:'市内因公出行',pct:1.60,color:CJC[3]},{label:'会议会展',pct:0.25,color:CJC[5]},{label:'商务接待',pct:0.06,color:CJC[4]}]) };
+  var CJR_CAR={ month:_CAR_M, quarter:_CAR_Q, year:_CAR_Y, optional:Object.assign({},_CAR_M,{pd:'2026年5-5月', head:'2026年5-5月用车集采消费情况'}) };
+
+  /* ---------- 消费与节省明细：全字段筛选面板（枚举下拉 / 时间区间 / 文本输入） ---------- */
+  function dField(f){
+    var ct='height:30px;min-width:140px;border:1px solid #dcdfe6;border-radius:4px;padding:0 8px;color:#606266;background:#fff;font-size:13px;outline:none;';
+    var c;
+    if(f.type==='date'){ c='<input type="date" style="'+ct+'min-width:136px"><span style="color:#909399;margin:0 2px">→</span><input type="date" style="'+ct+'min-width:136px">'; }
+    else if(f.type==='text'){ c='<input type="text" placeholder="'+(f.ph||'请输入')+'" style="'+ct+'">'; }
+    else { c='<select style="'+ct+'">'+f.opts.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select>'; }
+    return '<div class="filter-item"><label>'+f.label+'</label>'+c+'</div>';
+  }
+  function dFilters(fields){
+    var globalFields=[
+      {label:'订单时间类型',opts:['预订后','出行后']},
+      {label:'订单时间',type:'date'},
+      {label:'企业名称',opts:['请选择企业名称']},
+      {label:'部门',opts:['请选择消费者所属部门名称']},
+      {label:'外部企业',opts:['不含','仅外部企业']},
+      {label:'核算主体 <span class="new-tag">新增</span>',opts:['请选择核算主体']},
+      {label:'成本中心 <span class="new-tag">新增</span>',opts:['请选择成本中心']}
+    ];
+    return '<div class="sec-title">消费明细筛选 <span class="new-tag">全字段 / 枚举可选</span><span class="hint" style="margin-left:8px;font-weight:400">（已合并顶部 订单时间 / 企业 / 部门 / 核算主体 / 成本中心）</span></div>'
+      + '<div class="filter-row" style="gap:12px 18px;margin-bottom:4px">'+globalFields.concat(fields).map(dField).join('')+'</div>'
+      + '<div style="margin:12px 0 2px"><button class="btn btn-query">查询</button>&nbsp;&nbsp;<button class="btn btn-reset">重置</button></div>';
+  }
+
   /* ---------- 页面 ---------- */
   var PAGES = {
     'ov-all': { crumb:'总览报告_整体', render:function(){
@@ -554,7 +1134,7 @@
         + '<div class="ov-pane" data-view="amt">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">整体消费金额'+itip({def:'报告周期内全部业务线（机票/酒店/火车/用车/用餐/增值）的消费金额合计',formula:'Σ 各业务线消费金额',src:'消费明细基线表 · T+1 清洗',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">4,800,000.00元</div>'
-        +       '<div class="sub"><div>月均消费金额 <b>800,000.00元</b></div><div>差旅服务费 <b>280元</b></div></div></div>'
+        +       '<div class="sub"><div>月均消费金额 <b>800,000.00元</b></div><div>差旅服务费 <b>280元</b></div><div>消费金额同比 '+deltaSpan(40.84,'万元',2)+' '+yoy(9.3)+'</div></div></div>'
         +     '<div class="dist-block"><div class="sec-title">各产品消费分布</div><div class="dist-inner">'
         +       donut([{pct:56.98,color:C.other},{pct:15.00,color:C.car},{pct:11.67,color:C.air},{pct:8.54,color:C.meal},{pct:6.46,color:C.hotel},{pct:1.35,color:C.train}],
                   [{color:C.train,label:'火车(1.35%)'},{color:C.hotel,label:'酒店(6.46%)'},{color:C.meal,label:'用餐(8.54%)'},{color:C.air,label:'机票(11.67%)'},{color:C.car,label:'用车(15.00%)'},{color:C.other,label:'增值/其他(56.98%)'}])
@@ -579,7 +1159,7 @@
         + '<div class="ov-pane" data-view="cnt" style="display:none">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">整体订单量'+itip({def:'报告周期内全部业务线的订单数合计',formula:'Σ 各业务线订单数（出票/间夜/用车次数按各线口径）',src:'订单基线表 · T+1 清洗',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">65,258</div>'
-        +       '<div class="sub"><div>月均订单量 <b>10,876.33</b></div><div>服务人数 <b>1,609</b></div></div></div>'
+        +       '<div class="sub"><div>月均订单量 <b>10,876.33</b></div><div>服务人数 <b>1,609</b></div><div>订单量同比 '+deltaSpan(4722,'单',0)+' '+yoy(7.8)+'</div></div></div>'
         +     '<div class="dist-block"><div class="sec-title">各产品消费订单分布</div><div class="dist-inner">'
         +       donut([{pct:36.33,color:C.other},{pct:31.39,color:C.car},{pct:30.77,color:C.meal},{pct:0.62,color:C.hotel},{pct:0.54,color:C.train},{pct:0.35,color:C.air}],
                   [{color:C.air,label:'机票(0.35%)'},{color:C.hotel,label:'酒店(0.62%)'},{color:C.train,label:'火车(0.54%)'},{color:C.car,label:'用车(31.39%)'},{color:C.meal,label:'用餐(30.77%)'},{color:C.other,label:'增值/其他(36.33%)'}])
@@ -604,7 +1184,7 @@
         + compareSection()
         + reqbox([ R1(),
             {t:'<b>上线必备 H</b>：所有指标加 ⓘ 口径提示（含义/公式/来源/适用范围）— ✅本页关键指标已落地（鼠标悬停指标名旁 ⓘ 查看）；上线门禁项', id:'—', tag:'新增'},
-            {t:'<b>需求18</b>：同比 / 环比<b>并入各业务子页（机票/酒店/火车/用车）的消费明细表</b>呈现（整体总览仅图表，无明细表）— ✅已落地', id:'—', tag:'新增'},
+            {t:'<b>需求18</b>：同比<b>并入各业务子页（机票/酒店/火车/用车）的消费明细表</b>呈现（环比已下线；整体总览仅图表，无明细表）— ✅已落地', id:'—', tag:'新增'},
             {t:'<b>需求19</b>：企业 / 核算主体 / 部门对比（表格：消费金额/金额占比/产品条数/条数占比，按金额排名；各业务线页另有本线对比）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'集团差旅报告增加<b>二级单位消费金额排名</b>模块', id:'2502988', tag:'新增'},
             {t:'增加<b>碳排放数据</b>展示（依赖数据源接入，状态：暂不做）', id:'2600219', tag:'优化'}
@@ -618,11 +1198,11 @@
         + '<div class="ov-pane" data-view="amt">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">机票消费金额'+itip({def:'机票业务线消费金额（含税费，已扣退票、含改签差价）',formula:'出票成交净价 − 退票金额 + 改签差价 + 税费',src:'机票消费明细基线表',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">560,000.00元</div>'
-        +       statList([{k:'月均消费金额',v:'93,333.33元'},{k:'差旅服务费',v:'0元'},{k:'国内消费金额',v:'305,000元'},{k:'国际消费金额',v:'255,000元'},{k:'协议消费金额',v:'20,000元'},{k:'非协议消费金额',v:'540,000元'},{k:'改签消费金额',v:'1,800.00元'},{k:'退票消费金额',v:'-58,000.00元'}])
+        +       statList([{k:'月均消费金额',v:'93,333.33元'},{k:'差旅服务费',v:'0元'},{k:'国内消费金额',v:'305,000元'},{k:'国际消费金额',v:'255,000元'},{k:'协议消费金额',v:'20,000元'},{k:'非协议消费金额',v:'540,000元'},{k:'改签消费金额',v:'1,800.00元'},{k:'退票消费金额',v:'-58,000.00元'},{k:'消费金额同比',v:yoy(13.2)}])
         +     '</div>'
         +     '<div class="dist-block"><div class="sec-title">机票消费金额分布</div><div class="dist-donuts">'
-        +       donut([{pct:54.46,color:C.blue},{pct:45.54,color:C.orange}],[{color:C.blue,label:'国内(54.46%)'},{color:C.orange,label:'国际(45.54%)'}])
-        +       donut([{pct:96.43,color:C.teal},{pct:3.57,color:C.purple}],[{color:C.teal,label:'非协议(96.43%)'},{color:C.purple,label:'协议(3.57%)'}])
+        +       donut([{pct:54.46,color:C.blue},{pct:45.54,color:C.orange}],[{color:C.blue,label:'国内(54.46%)'},{color:C.orange,label:'国际(45.54%)'}],['国内_国际机票：国内||消费金额：305,000.00元(54.46%)||同比：+11.5%','国内_国际机票：国际||消费金额：255,000.00元(45.54%)||同比：+15.6%'])
+        +       donut([{pct:96.43,color:C.teal},{pct:3.57,color:C.purple}],[{color:C.teal,label:'非协议(96.43%)'},{color:C.purple,label:'协议(3.57%)'}],['是否协议机票：非协议||消费金额：540,000.00元(96.43%)||同比：+13.8%','是否协议机票：协议||消费金额：20,000.00元(3.57%)||同比：-4.2%'])
         +     '</div></div>'
         +   '</div>'
         +   '<div class="sec-title mt">机票消费金额趋势</div>'
@@ -636,11 +1216,11 @@
         + '<div class="ov-pane" data-view="cnt" style="display:none">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">机票出票张数'+itip({def:'报告周期内机票出票总张数（国内+国际）',formula:'Σ 出票张数（不含纯退票/改签换开重复计数）',src:'机票出票明细',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">245</div>'
-        +       statList([{k:'机票月均出票',v:'41张'},{k:'订单量',v:'229'},{k:'国内出票张数',v:'224张'},{k:'国际出票张数',v:'21张'},{k:'协议出票张数',v:'18张'},{k:'非协议出票张数',v:'227张'},{k:'机票改签张数',v:'7张'},{k:'机票退票张数',v:'34张'}])
+        +       statList([{k:'机票月均出票',v:'41张'},{k:'订单量',v:'229'},{k:'国内出票张数',v:'224张'},{k:'国际出票张数',v:'21张'},{k:'协议出票张数',v:'18张'},{k:'非协议出票张数',v:'227张'},{k:'机票改签张数',v:'7张'},{k:'机票退票张数',v:'34张'},{k:'出票张数同比',v:yoy(8.6)}])
         +     '</div>'
         +     '<div class="dist-block"><div class="sec-title">机票出票分布</div><div class="dist-donuts">'
-        +       donut([{pct:91.43,color:C.blue},{pct:8.57,color:C.orange}],[{color:C.blue,label:'国内(91.43%)'},{color:C.orange,label:'国际(8.57%)'}])
-        +       donut([{pct:92.65,color:C.teal},{pct:7.35,color:C.purple}],[{color:C.teal,label:'非协议(92.65%)'},{color:C.purple,label:'协议(7.35%)'}])
+        +       donut([{pct:91.43,color:C.blue},{pct:8.57,color:C.orange}],[{color:C.blue,label:'国内(91.43%)'},{color:C.orange,label:'国际(8.57%)'}],['国内_国际机票：国内||机票出票张数：224张(91.43%)||同比：+7.9%','国内_国际机票：国际||机票出票张数：21张(8.57%)||同比：+14.3%'])
+        +       donut([{pct:92.65,color:C.teal},{pct:7.35,color:C.purple}],[{color:C.teal,label:'非协议(92.65%)'},{color:C.purple,label:'协议(7.35%)'}],['是否协议机票：非协议||机票出票张数：227张(92.65%)||同比：+9.1%','是否协议机票：协议||机票出票张数：18张(7.35%)||同比：-2.0%'])
         +     '</div></div>'
         +   '</div>'
         +   '<div class="sec-title mt">机票出票趋势（国内 / 国际）</div>'
@@ -659,7 +1239,7 @@
         + '</div>'
         + '<div class="sec-title mt">机票消费明细</div>'
         + dimTable(['整体','国内 / 国际','协议 / 非协议'],[
-            tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
+            tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
               + trow(['2026-1','199,115.00'].concat(yoyTriple(MD_AIR,0,2)).concat(['161,726.00','3,250.00','1,370.00','0.00','5,702.00','0.00']))
               + trow(['2026-2','30,467.00'].concat(yoyTriple(MD_AIR,1,2)).concat(['25,842.00','1,050.00','410.00','0.00','32.00','195.00']))
               + trow(['2026-3','160,830.00'].concat(yoyTriple(MD_AIR,2,2)).concat(['142,124.00','2,300.00','900.00','40.00','13,217.00','205.00']))
@@ -668,7 +1248,7 @@
               + trow(['2026-6','6,650.00'].concat(yoyTriple(MD_AIR,5,2)).concat(['5,500.00','300.00','850.00','0.00','0.00','0.00']))
               + trow(['总计','608,801.00'].concat(yoyTripleTotal(MD_AIR,2)).concat(['516,644.00','9,450.00','9,590.00','280.00','36,277.00','1,082.00']),true)),
             '<div class="sec-title">国内机票消费明细</div>'
-              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
+              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
                 + trow(['2026-1',nf(MD_AIR_DOM[0],2)].concat(yoyTriple(MD_AIR_DOM,0)).concat(['134,216.00','3,250.00','1,370.00','0.00','0.00','0.00']))
                 + trow(['2026-2',nf(MD_AIR_DOM[1],2)].concat(yoyTriple(MD_AIR_DOM,1)).concat(['26,592.00','1,050.00','410.00','0.00','0.00','195.00']))
                 + trow(['2026-3',nf(MD_AIR_DOM[2],2)].concat(yoyTriple(MD_AIR_DOM,2)).concat(['52,344.00','2,300.00','900.00','0.00','0.00','205.00']))
@@ -677,7 +1257,7 @@
                 + trow(['2026-6',nf(MD_AIR_DOM[5],2)].concat(yoyTriple(MD_AIR_DOM,5)).concat(['12,800.00','650.00','1,900.00','0.00','0.00','0.00']))
                 + trow(['总计','341,698.00'].concat(yoyTripleTotal(MD_AIR_DOM)).concat(['311,451.00','9,800.00','10,640.00','0.00','0.00','1,082.00']),true))
               + '<div class="sec-title mt">国际机票消费明细</div>'
-              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
+              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
                 + trow(['2026-1',nf(MD_AIR_INT[0],2)].concat(yoyTriple(MD_AIR_INT,0)).concat(['27,510.00','0.00','0.00','0.00','5,702.00','0.00']))
                 + trow(['2026-2',nf(MD_AIR_INT[1],2)].concat(yoyTriple(MD_AIR_INT,1)).concat(['-750.00','0.00','0.00','0.00','32.00','0.00']))
                 + trow(['2026-3',nf(MD_AIR_INT[2],2)].concat(yoyTriple(MD_AIR_INT,2)).concat(['89,780.00','0.00','0.00','0.00','13,217.00','0.00']))
@@ -685,7 +1265,7 @@
                 + trow(['2026-5',nf(MD_AIR_INT[4],2)].concat(yoyTriple(MD_AIR_INT,4)).concat(['64,844.00','0.00','0.00','0.00','10,155.00','0.00']))
                 + trow(['总计','275,843.00'].concat(yoyTripleTotal(MD_AIR_INT)).concat(['212,493.00','0.00','0.00','0.00','36,277.00','0.00']),true)),
             '<div class="sec-title">协议机票消费明细</div>'
-              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
+              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
                 + trow(['2026-1',nf(MD_AIR_XY[0],2)].concat(yoyTriple(MD_AIR_XY,0)).concat(['7,510.00','250.00','100.00','0.00','0.00','0.00']))
                 + trow(['2026-2',nf(MD_AIR_XY[1],2)].concat(yoyTriple(MD_AIR_XY,1)).concat(['4,000.00','100.00','40.00','0.00','0.00','0.00']))
                 + trow(['2026-3',nf(MD_AIR_XY[2],2)].concat(yoyTriple(MD_AIR_XY,2)).concat(['3,250.00','200.00','80.00','0.00','0.00','0.00']))
@@ -693,7 +1273,7 @@
                 + trow(['2026-5',nf(MD_AIR_XY[4],2)].concat(yoyTriple(MD_AIR_XY,4)).concat(['0.00','0.00','0.00','0.00','0.00','0.00']))
                 + trow(['总计','22,216.00'].concat(yoyTripleTotal(MD_AIR_XY)).concat(['19,510.00','650.00','460.00','0.00','0.00','0.00']),true))
               + '<div class="sec-title mt">非协议机票消费明细</div>'
-              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
+              + tableW(thead(['统计时间','机票消费金额','同比 <span class="new-tag">需求18</span>','成交净价(含改签差价)','民航发展基金','燃油费','业务服务费','国际税费','改签手续费'])
                 + trow(['2026-1',nf(MD_AIR_FXY[0],2)].concat(yoyTriple(MD_AIR_FXY,0)).concat(['154,216.00','3,000.00','1,270.00','0.00','5,702.00','0.00']))
                 + trow(['2026-2',nf(MD_AIR_FXY[1],2)].concat(yoyTriple(MD_AIR_FXY,1)).concat(['21,842.00','950.00','370.00','0.00','32.00','195.00']))
                 + trow(['2026-3',nf(MD_AIR_FXY[2],2)].concat(yoyTriple(MD_AIR_FXY,2)).concat(['138,874.00','2,100.00','820.00','0.00','13,217.00','205.00']))
@@ -704,7 +1284,7 @@
           ])
         + compareSection('air')
         + reqbox([ R1(),
-            {t:'<b>需求18</b>：同比/环比<b>已并入消费明细表</b>（不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
+            {t:'<b>需求18</b>：同比<b>已并入消费明细表</b>（环比已下线，不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'<b>需求19</b>：本业务线 企业/核算主体/部门对比（金额/金额占比/条数/条数占比）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'区分<b>福利机票与代理机票</b>数据维度', id:'2502018', tag:'新增'},
             {t:'<b>国际机票</b>差旅报告独立拆分展示', id:'2502804', tag:'新增'},
@@ -719,11 +1299,11 @@
         + '<div class="ov-pane" data-view="amt">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">酒店消费金额'+itip({def:'酒店业务线消费金额（含房费、业务服务费，已扣退订）',formula:'酒店房价 + 业务服务费 − 取消手续费 − 退订金额',src:'酒店消费明细基线表',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">1,980,000.00元</div>'
-        +       statList([{k:'月均消费金额',v:'330,000元'},{k:'差旅服务费',v:'620元'},{k:'国内消费金额',v:'1,560,000元'},{k:'国际消费金额',v:'420,000元'},{k:'协议消费金额',v:'570,000元'},{k:'非协议消费金额',v:'1,410,000元'},{k:'退订消费金额',v:'-330,000元'},{k:'间夜均价(贵司)',v:'450元'}])
+        +       statList([{k:'月均消费金额',v:'330,000元'},{k:'差旅服务费',v:'620元'},{k:'国内消费金额',v:'1,560,000元'},{k:'国际消费金额',v:'420,000元'},{k:'协议消费金额',v:'570,000元'},{k:'非协议消费金额',v:'1,410,000元'},{k:'退订消费金额',v:'-330,000元'},{k:'间夜均价(贵司)',v:'450元'},{k:'消费金额同比',v:yoy(12.8)}])
         +     '</div>'
         +     '<div class="dist-block"><div class="sec-title">酒店消费金额分布</div><div class="dist-donuts">'
-        +       donut([{pct:79.05,color:C.blue},{pct:20.95,color:C.orange}],[{color:C.blue,label:'国内(79.05%)'},{color:C.orange,label:'国际(20.95%)'}])
-        +       donut([{pct:71.07,color:C.teal},{pct:28.93,color:C.purple}],[{color:C.teal,label:'非协议(71.07%)'},{color:C.purple,label:'协议(28.93%)'}])
+        +       donut([{pct:79.05,color:C.blue},{pct:20.95,color:C.orange}],[{color:C.blue,label:'国内(79.05%)'},{color:C.orange,label:'国际(20.95%)'}],['国内_国际酒店：国内||消费金额：1,560,000.00元(79.05%)||同比：+14.2%','国内_国际酒店：国际||消费金额：420,000.00元(20.95%)||同比：+6.5%'])
+        +       donut([{pct:71.07,color:C.teal},{pct:28.93,color:C.purple}],[{color:C.teal,label:'非协议(71.07%)'},{color:C.purple,label:'协议(28.93%)'}],['是否协议酒店产品：非协议||消费金额：1,410,000.00元(71.07%)||同比：+10.6%','是否协议酒店产品：协议||消费金额：570,000.00元(28.93%)||同比：+22.4%'])
         +     '</div></div>'
         +   '</div>'
         +   '<div class="sec-title mt">酒店消费趋势</div>'
@@ -737,11 +1317,11 @@
         + '<div class="ov-pane" data-view="cnt" style="display:none">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">酒店入住间夜'+itip({def:'报告周期内实际入住间夜数（房间数×入住晚数）',formula:'Σ 预订间夜 − 退订间夜',src:'酒店订单明细',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">627</div>'
-        +       statList([{k:'月均入住',v:'105间夜'},{k:'订单量',v:'405'},{k:'国内预订',v:'688间夜'},{k:'国际预订',v:'57间夜'},{k:'协议预订',v:'177间夜'},{k:'非协议预订',v:'568间夜'},{k:'退订间夜',v:'118间夜'},{k:'预订间夜',v:'745间夜'}])
+        +       statList([{k:'月均入住',v:'105间夜'},{k:'订单量',v:'405'},{k:'国内预订',v:'688间夜'},{k:'国际预订',v:'57间夜'},{k:'协议预订',v:'177间夜'},{k:'非协议预订',v:'568间夜'},{k:'退订间夜',v:'118间夜'},{k:'预订间夜',v:'745间夜'},{k:'入住间夜同比',v:yoy(9.2)}])
         +     '</div>'
         +     '<div class="dist-block"><div class="sec-title">酒店入住间夜分布</div><div class="dist-donuts">'
-        +       donut([{pct:93.46,color:C.blue},{pct:6.54,color:C.orange}],[{color:C.blue,label:'国内(93.46%)'},{color:C.orange,label:'国际(6.54%)'}])
-        +       donut([{pct:74.48,color:C.teal},{pct:25.52,color:C.purple}],[{color:C.teal,label:'非协议(74.48%)'},{color:C.purple,label:'协议(25.52%)'}])
+        +       donut([{pct:93.46,color:C.blue},{pct:6.54,color:C.orange}],[{color:C.blue,label:'国内(93.46%)'},{color:C.orange,label:'国际(6.54%)'}],['国内_国际酒店：国内||入住间夜_实际：586(93.46%)||同比：+9.6%','国内_国际酒店：国际||入住间夜_实际：41(6.54%)||同比：+3.2%'])
+        +       donut([{pct:74.48,color:C.teal},{pct:25.52,color:C.purple}],[{color:C.teal,label:'非协议(74.48%)'},{color:C.purple,label:'协议(25.52%)'}],['是否协议酒店产品：非协议||入住间夜_实际：467(74.48%)||同比：+7.4%','是否协议酒店产品：协议||入住间夜_实际：160(25.52%)||同比：+18.5%'])
         +     '</div></div>'
         +   '</div>'
         +   '<div class="sec-title mt">酒店入住间夜趋势（国内 / 国际）</div>'
@@ -760,7 +1340,7 @@
         + '</div>'
         + '<div class="sec-title mt">酒店消费明细</div>'
         + dimTable(['整体','国内 / 国际','协议 / 非协议'],[
-            tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','税损服务费','优惠券'])
+            tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','税损服务费','优惠券'])
               + trow(['2026-1','115,234.70'].concat(yoyTriple(MD_HOTEL,0,2)).concat(['115,143.70','91.00','0.00','0.00','22.00']))
               + trow(['2026-2','45,899.40'].concat(yoyTriple(MD_HOTEL,1,2)).concat(['45,798.40','101.00','106.90','0.00','0.00']))
               + trow(['2026-3','64,445.97'].concat(yoyTriple(MD_HOTEL,2,2)).concat(['64,421.97','24.00','0.00','0.00','193.78']))
@@ -769,7 +1349,7 @@
               + trow(['2026-6','9,726.13'].concat(yoyTriple(MD_HOTEL,5,2)).concat(['9,728.13','-2.00','0.00','0.00','20.87']))
               + trow(['总计','344,643.45'].concat(yoyTripleTotal(MD_HOTEL,2)).concat(['344,334.45','309.00','156.90','0.00','354.40']),true)),
             '<div class="sec-title">国内酒店消费明细</div>'
-              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
+              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
                 + trow(['2026-1',nf(MD_HT_DOM[0],2)].concat(yoyTriple(MD_HT_DOM,0)).concat([nf(MD_HT_DOM[0],2),'72.00','0.00','17.00']))
                 + trow(['2026-2',nf(MD_HT_DOM[1],2)].concat(yoyTriple(MD_HT_DOM,1)).concat([nf(MD_HT_DOM[1],2),'80.00','85.00','0.00']))
                 + trow(['2026-3',nf(MD_HT_DOM[2],2)].concat(yoyTriple(MD_HT_DOM,2)).concat([nf(MD_HT_DOM[2],2),'19.00','0.00','154.00']))
@@ -778,7 +1358,7 @@
                 + trow(['2026-6',nf(MD_HT_DOM[5],2)].concat(yoyTriple(MD_HT_DOM,5)).concat([nf(MD_HT_DOM[5],2),'-2.00','0.00','17.00']))
                 + trow(['总计','273,862.00'].concat(yoyTripleTotal(MD_HT_DOM)).concat(['273,862.00','244.00','125.00','281.00']),true))
               + '<div class="sec-title mt">国际酒店消费明细</div>'
-              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
+              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
                 + trow(['2026-1',nf(MD_HT_INT[0],2)].concat(yoyTriple(MD_HT_INT,0)).concat([nf(MD_HT_INT[0],2),'19.00','0.00','5.00']))
                 + trow(['2026-2',nf(MD_HT_INT[1],2)].concat(yoyTriple(MD_HT_INT,1)).concat([nf(MD_HT_INT[1],2),'21.00','22.00','0.00']))
                 + trow(['2026-3',nf(MD_HT_INT[2],2)].concat(yoyTriple(MD_HT_INT,2)).concat([nf(MD_HT_INT[2],2),'5.00','0.00','40.00']))
@@ -787,7 +1367,7 @@
                 + trow(['2026-6',nf(MD_HT_INT[5],2)].concat(yoyTriple(MD_HT_INT,5)).concat([nf(MD_HT_INT[5],2),'0.00','0.00','5.00']))
                 + trow(['总计','70,781.00'].concat(yoyTripleTotal(MD_HT_INT)).concat(['70,781.00','65.00','32.00','75.00']),true)),
             '<div class="sec-title">协议酒店消费明细</div>'
-              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
+              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
                 + trow(['2026-1',nf(MD_HT_XY[0],2)].concat(yoyTriple(MD_HT_XY,0)).concat([nf(MD_HT_XY[0],2),'19.00','0.00','5.00']))
                 + trow(['2026-2',nf(MD_HT_XY[1],2)].concat(yoyTriple(MD_HT_XY,1)).concat([nf(MD_HT_XY[1],2),'21.00','22.00','0.00']))
                 + trow(['2026-3',nf(MD_HT_XY[2],2)].concat(yoyTriple(MD_HT_XY,2)).concat([nf(MD_HT_XY[2],2),'5.00','0.00','40.00']))
@@ -796,7 +1376,7 @@
                 + trow(['2026-6',nf(MD_HT_XY[5],2)].concat(yoyTriple(MD_HT_XY,5)).concat([nf(MD_HT_XY[5],2),'0.00','0.00','5.00']))
                 + trow(['总计','70,858.00'].concat(yoyTripleTotal(MD_HT_XY)).concat(['70,858.00','65.00','32.00','75.00']),true))
               + '<div class="sec-title mt">非协议酒店消费明细</div>'
-              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
+              + tableW(thead(['统计时间','酒店消费金额','同比 <span class="new-tag">需求18</span>','酒店房价','业务服务费','取消手续费','优惠券'])
                 + trow(['2026-1',nf(MD_HT_FXY[0],2)].concat(yoyTriple(MD_HT_FXY,0)).concat([nf(MD_HT_FXY[0],2),'72.00','0.00','17.00']))
                 + trow(['2026-2',nf(MD_HT_FXY[1],2)].concat(yoyTriple(MD_HT_FXY,1)).concat([nf(MD_HT_FXY[1],2),'80.00','85.00','0.00']))
                 + trow(['2026-3',nf(MD_HT_FXY[2],2)].concat(yoyTriple(MD_HT_FXY,2)).concat([nf(MD_HT_FXY[2],2),'19.00','0.00','154.00']))
@@ -807,7 +1387,7 @@
           ])
         + compareSection('hotel')
         + reqbox([ R1(),
-            {t:'<b>需求18</b>：同比/环比<b>已并入消费明细表</b>（不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
+            {t:'<b>需求18</b>：同比<b>已并入消费明细表</b>（环比已下线，不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'<b>需求19</b>：本业务线 企业/核算主体/部门对比（金额/金额占比/条数/条数占比）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'增加<b>酒店集团同比分析</b>及 OTA 与协议酒店<b>对比维度</b>', id:'2600698', tag:'新增'},
             {t:'增加<b>协议酒店可订率</b>指标', id:'2501745', tag:'新增'},
@@ -823,7 +1403,7 @@
         + '<div class="ov-pane" data-view="amt">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">火车消费金额'+itip({def:'火车业务线消费金额（含改签费，已扣退票/退订）',formula:'票面价 + 改签费 − 退订费',src:'火车消费明细基线表',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">74,531.00元</div>'
-        +       statList([{k:'月均消费金额',v:'12,421.83元'},{k:'差旅服务费',v:'0元'},{k:'改签消费金额',v:'13,464.50元'},{k:'退票消费金额',v:'-15,138.51元'}])
+        +       statList([{k:'月均消费金额',v:'12,421.83元'},{k:'差旅服务费',v:'0元'},{k:'改签消费金额',v:'13,464.50元'},{k:'退票消费金额',v:'-15,138.51元'},{k:'消费金额同比',v:yoy(-5.4)}])
         +     '</div>'
         +     '<div class="dist-block dist-r"><div class="sec-title">火车票坐席分布（金额）</div>'
         +       donut([{pct:79.63,color:C.orange},{pct:4.21,color:C.blue},{pct:16.16,color:C.teal}],[{color:C.blue,label:'一等座(4.21%)'},{color:C.orange,label:'二等座(79.63%)'},{color:C.teal,label:'其他(16.16%)'}])
@@ -836,7 +1416,7 @@
         + '<div class="ov-pane" data-view="cnt" style="display:none">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">火车出票张数'+itip({def:'报告周期内火车出票总张数',formula:'Σ 出票张数',src:'火车出票明细',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">355</div>'
-        +       statList([{k:'票均消费金额(出票)',v:'214.67元'},{k:'订单量',v:'344'},{k:'火车改签张数',v:'54张'},{k:'火车退票张数',v:'17张'}])
+        +       statList([{k:'票均消费金额(出票)',v:'214.67元'},{k:'订单量',v:'344'},{k:'火车改签张数',v:'54张'},{k:'火车退票张数',v:'17张'},{k:'出票张数同比',v:yoy(-3.8)}])
         +     '</div>'
         +     '<div class="dist-block dist-r"><div class="sec-title">火车票坐席分布（出票张数）</div>'
         +       donut([{pct:90.70,color:C.orange},{pct:2.82,color:C.blue},{pct:6.48,color:C.teal}],[{color:C.blue,label:'一等座(2.82%)'},{color:C.orange,label:'二等座(90.70%)'},{color:C.teal,label:'其他(6.48%)'}])
@@ -847,7 +1427,7 @@
         + '</div>'
         + '</div>'
         + '<div class="sec-title mt">火车消费明细</div>'
-        + tableW(thead(['统计时间','火车票消费金额','同比 <span class="new-tag">需求18</span>','环比 <span class="new-tag">需求18</span>','火车票票面价','业务服务费','改签费','退订费','垫资服务费'])
+        + tableW(thead(['统计时间','火车票消费金额','同比 <span class="new-tag">需求18</span>','火车票票面价','业务服务费','改签费','退订费','垫资服务费'])
               + trow(['2026-1','13,644.50'].concat(yoyTriple(MD_TRAIN,0,2)).concat(['13,440.00','0.00','0.00','111.00','0.00']))
               + trow(['2026-2','5,568.00'].concat(yoyTriple(MD_TRAIN,1,2)).concat(['5,566.00','0.00','2.00','0.00','0.00']))
               + trow(['2026-3','18,214.50'].concat(yoyTriple(MD_TRAIN,2,2)).concat(['18,073.50','0.00','5.00','35.00','0.00']))
@@ -857,7 +1437,7 @@
               + trow(['总计','74,531.00'].concat(yoyTripleTotal(MD_TRAIN,2)).concat(['74,146.00','0.00','27.50','223.00','0.00']),true))
         + compareSection('train')
         + reqbox([ R1(),
-            {t:'<b>需求18</b>：同比/环比<b>已并入消费明细表</b>（不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
+            {t:'<b>需求18</b>：同比<b>已并入消费明细表</b>（环比已下线，不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'<b>需求19</b>：本业务线 企业/核算主体/部门对比（金额/金额占比/条数/条数占比）— ✅本页已落地', id:'—', tag:'新增'}
           ]);
     }},
@@ -869,7 +1449,7 @@
         + '<div class="ov-pane" data-view="amt">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">用车消费金额'+itip({def:'用车业务线消费金额（净车费+附加费）',formula:'Σ 净车费 + 附加费 − 优惠券',src:'用车消费明细基线表',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">792,615.07元</div>'
-        +       statList([{k:'用车次数',v:'21,492'},{k:'差旅服务费',v:'0元'},{k:'行程均价(贵司)',v:'36.88元'},{k:'行程均价(商旅)',v:'54.72元'}])
+        +       statList([{k:'用车次数',v:'21,492'},{k:'差旅服务费',v:'0元'},{k:'行程均价(贵司)',v:'36.88元'},{k:'行程均价(商旅)',v:'54.72元'},{k:'消费金额同比',v:yoy(18.7)}])
         +     '</div>'
         +     '<div class="dist-block"><div class="sec-title">用车车型消费分布</div>'
         +       donut([{pct:47.52,color:C.blue},{pct:46.5,color:C.orange},{pct:5.9,color:C.purple},{pct:0.08,color:C.teal}],[{color:C.blue,label:'经济型(47.52%)'},{color:C.orange,label:'舒适型(46.5%)'},{color:C.purple,label:'商务型(5.9%)'},{color:C.teal,label:'豪华型(0.08%)'}])
@@ -892,7 +1472,7 @@
         + '<div class="ov-pane" data-view="cnt" style="display:none">'
         +   '<div class="ov-top">'
         +     '<div class="metric-block"><div class="sec-title">用车订单量'+itip({def:'报告周期内用车订单总数（实时+预约+接送）',formula:'Σ 用车订单数',src:'用车订单明细',scope:'当前筛选与数据权限范围内'})+'</div><div class="big-amount">21,492</div>'
-        +       statList([{k:'月均订单量',v:'3,582'},{k:'实时用车',v:'20,920次'},{k:'预约用车',v:'468次'},{k:'接送机/站',v:'104次'}])
+        +       statList([{k:'月均订单量',v:'3,582'},{k:'实时用车',v:'20,920次'},{k:'预约用车',v:'468次'},{k:'接送机/站',v:'104次'},{k:'订单量同比',v:yoy(16.2)}])
         +     '</div>'
         +     '<div class="dist-block"><div class="sec-title">用车车型订单分布</div>'
         +       donut([{pct:47.52,color:C.blue},{pct:46.25,color:C.orange},{pct:5.9,color:C.purple},{pct:0.34,color:C.teal}],[{color:C.blue,label:'经济型(47.52%)'},{color:C.orange,label:'舒适型(46.25%)'},{color:C.purple,label:'商务型(5.9%)'},{color:C.teal,label:'豪华型(0.34%)'}])
@@ -910,7 +1490,7 @@
         + '</div>'
         + '<div class="sec-title mt">用车消费明细</div>'
         + dimTable(['整体','实时/预约用车','接送机/接送站','包车_日租/其他'],[
-            tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','税损服务费','优惠券'])
+            tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','税损服务费','优惠券'])
               + trow(['2026-1','176,477.49'].concat(yoyTriple(MD_CAR,0,2)).concat(['173,583.01','1,032.53','0.00','149.60']))
               + trow(['2026-2','123,400.54'].concat(yoyTriple(MD_CAR,1,2)).concat(['120,446.76','559.98','0.00','288.85']))
               + trow(['2026-3','180,381.48'].concat(yoyTriple(MD_CAR,2,2)).concat(['179,484.75','1,511.15','0.00','609.90']))
@@ -918,7 +1498,7 @@
               + trow(['2026-5','85,312.10'].concat(yoyTriple(MD_CAR,4,2)).concat(['85,048.13','397.24','0.00','131.27']))
               + trow(['总计','708,718.97'].concat(yoyTripleTotal(MD_CAR,2)).concat(['701,228.14','4,433.45','0.00','1,498.28']),true)),
             '<div class="sec-title">实时用车消费明细</div>'
-              + tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
+              + tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
                 + trow(['2026-1',nf(MD_CAR_RT[0],2)].concat(yoyTriple(MD_CAR_RT,0)).concat(['170,950.69','862.53','0.00','0.00','149.60']))
                 + trow(['2026-2',nf(MD_CAR_RT[1],2)].concat(yoyTriple(MD_CAR_RT,1)).concat(['116,582.78','473.98','0.00','0.00','288.85']))
                 + trow(['2026-3',nf(MD_CAR_RT[2],2)].concat(yoyTriple(MD_CAR_RT,2)).concat(['175,789.62','1,365.15','0.00','0.00','585.49']))
@@ -927,7 +1507,7 @@
                 + trow(['2026-6',nf(MD_CAR_RT[5],2)].concat(yoyTriple(MD_CAR_RT,5)).concat(['56,826.79','381.12','0.00','0.00','97.06']))
                 + trow(['总计','780,342.76'].concat(yoyTripleTotal(MD_CAR_RT)).concat(['774,324.02','4,665.11','0.00','0.00','1,640.88']),true))
               + '<div class="sec-title mt">预约用车消费明细</div>'
-              + tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
+              + tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
                 + trow(['2026-1',nf(MD_CAR_YY[0],2)].concat(yoyTriple(MD_CAR_YY,0)).concat(['2,019.97','166.00','0.00','0.00','0.00']))
                 + trow(['2026-2',nf(MD_CAR_YY[1],2)].concat(yoyTriple(MD_CAR_YY,1)).concat(['3,680.96','86.00','0.00','0.00','0.00']))
                 + trow(['2026-3',nf(MD_CAR_YY[2],2)].concat(yoyTriple(MD_CAR_YY,2)).concat(['3,212.10','131.00','0.00','0.00','24.41']))
@@ -936,7 +1516,7 @@
                 + trow(['2026-6',nf(MD_CAR_YY[5],2)].concat(yoyTriple(MD_CAR_YY,5)).concat(['1,029.51','49.00','0.00','0.00','32.74']))
                 + trow(['总计','17,595.75'].concat(yoyTripleTotal(MD_CAR_YY)).concat(['15,464.78','529.00','0.00','0.00','68.03']),true)),
             '<div class="sec-title">接送机用车消费明细</div>'
-              + tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
+              + tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
                 + trow(['2026-1',nf(MD_CAR_JSJ[0],2)].concat(yoyTriple(MD_CAR_JSJ,0)).concat(['612.35','4.00','0.00','0.00','0.00']))
                 + trow(['2026-2',nf(MD_CAR_JSJ[1],2)].concat(yoyTriple(MD_CAR_JSJ,1)).concat(['183.02','0.00','0.00','0.00','0.00']))
                 + trow(['2026-3',nf(MD_CAR_JSJ[2],2)].concat(yoyTriple(MD_CAR_JSJ,2)).concat(['450.48','15.00','0.00','0.00','0.00']))
@@ -944,21 +1524,21 @@
                 + trow(['2026-5',nf(MD_CAR_JSJ[4],2)].concat(yoyTriple(MD_CAR_JSJ,4)).concat(['640.46','0.00','0.00','0.00','0.02']))
                 + trow(['总计','2,813.31'].concat(yoyTripleTotal(MD_CAR_JSJ)).concat(['2,757.33','56.00','0.00','0.00','0.02']),true))
               + '<div class="sec-title mt">接送站用车消费明细</div>'
-              + tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
+              + tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
                 + trow(['2026-3',nf(MD_CAR_JSZ[0],2)].concat(yoyTriple(MD_CAR_JSZ,0)).concat(['32.55','0.00','0.00','0.00','0.00']))
                 + trow(['2026-4',nf(MD_CAR_JSZ[1],2)].concat(yoyTriple(MD_CAR_JSZ,1)).concat(['290.86','0.00','0.00','0.00','0.00']))
                 + trow(['2026-5',nf(MD_CAR_JSZ[2],2)].concat(yoyTriple(MD_CAR_JSZ,2)).concat(['48.70','0.00','0.00','0.00','0.00']))
                 + trow(['总计','372.11'].concat(yoyTripleTotal(MD_CAR_JSZ)).concat(['372.11','0.00','0.00','0.00','0.00']),true)),
             '<div class="sec-title">包车_日租消费明细</div>'
-              + tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
-                + trow(['总计','-','-','-','-','-','-','-','-'],true))
+              + tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
+                + trow(['总计','-','-','-','-','-','-','-'],true))
               + '<div class="sec-title mt">其他类型消费明细</div>'
-              + tableW(thead(['统计时间','用车消费金额','同比','环比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
-                + trow(['总计','-','-','-','-','-','-','-','-'],true))
+              + tableW(thead(['统计时间','用车消费金额','同比','用车净车费','用车附加费','业务服务费','税损服务费','优惠券'])
+                + trow(['总计','-','-','-','-','-','-','-'],true))
           ])
         + compareSection('car')
         + reqbox([ R1(),
-            {t:'<b>需求18</b>：同比/环比<b>已并入消费明细表</b>（不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
+            {t:'<b>需求18</b>：同比<b>已并入消费明细表</b>（环比已下线，不再单独成表）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'<b>需求19</b>：本业务线 企业/核算主体/部门对比（金额/金额占比/条数/条数占比）— ✅本页已落地', id:'—', tag:'新增'},
             {t:'新版差旅报告<b>补全旧版功能</b>（用车明细、订单数等）', id:'2503720', tag:'新增'},
             {t:'用车明细<b>导出含成本中心</b>（用车报告订单明细导出）', id:'2501799', tag:'新增'}
@@ -970,8 +1550,8 @@
           {k:'协议机票成交净价',v:'19,510.00元'},{k:'协议成交净价占比',v:'3.78%'},{k:'商旅协议成交净价占比',v:'47.32%'},
           {k:'协议出票张数',v:'18张'},{k:'协议出票张数占比',v:'7.35%'},{k:'商旅协议出票张数占比',v:'41.96%'}])
         + '<div class="row mt" style="margin-top:20px">'
-        +   card('机票消费分布', donut([{pct:96.22,color:C.blue},{pct:3.78,color:C.purple}],[{color:C.blue,label:'非协议(96.22%)'},{color:C.purple,label:'协议(3.78%)'}]))
-        +   card('机票子类型消费分布', donut([{pct:55.09,color:C.blue},{pct:41.13,color:C.purple},{pct:3.78,color:C.orange}],[{color:C.blue,label:'国内非协议(55.09%)'},{color:C.purple,label:'国际非协议(41.13%)'},{color:C.orange,label:'国内协议(3.78%)'}]))
+        +   card('机票消费分布', donut([{pct:96.22,color:C.blue},{pct:3.78,color:C.purple}],[{color:C.blue,label:'非协议(96.22%)'},{color:C.purple,label:'协议(3.78%)'}],['是否协议机票：非协议||成交净价：497,134.00元(96.22%)||同比：+13.5%','是否协议机票：协议||成交净价：19,510.00元(3.78%)||同比：-4.1%']))
+        +   card('机票子类型消费分布', donut([{pct:55.09,color:C.blue},{pct:41.13,color:C.purple},{pct:3.78,color:C.orange}],[{color:C.blue,label:'国内非协议(55.09%)'},{color:C.purple,label:'国际非协议(41.13%)'},{color:C.orange,label:'国内协议(3.78%)'}],['机票子类型：国内非协议||成交净价：284,617.00元(55.09%)||同比：+12.8%','机票子类型：国际非协议||成交净价：212,496.00元(41.13%)||同比：+16.4%','机票子类型：国内协议||成交净价：19,510.00元(3.78%)||同比：-4.1%']))
         +   card('航司资源简报', '<div class="scene-note">贵司协议机票消费占比 <b>3.79%</b>，低于商旅平均值，可考虑进行航司签约，提升协议覆盖与折扣议价空间。</div>')
         + '</div>'
         + '<div class="sec-title mt">TOP15 协议航司消费情况</div>'
@@ -1005,10 +1585,10 @@
       return '<div class="ov-top">'
         +   '<div class="metric-block"><div class="sec-title">酒店协议消费</div><div class="big-amount">70,871.59元</div>'
         +     statList([{k:'协议消费金额占比(贵司)',v:'20.87%'},{k:'协议消费金额占比(商旅)',v:'65.17%'}])
-        +     '<div style="margin-top:14px">'+tableW(thead(['酒店资源类型','消费金额(元)','消费占比','入住间夜','间夜占比'])
-                + trow(['企业协议','70,871.59','20.56%','160','25.52%'])
-                + trow(['差旅壹号协议','49,456.00','14.35%','128','20.41%'])
-                + trow(['其他','224,315.86','65.09%','339','54.07%']))+'</div></div>'
+        +     '<div style="margin-top:14px">'+tableW(thead(['酒店资源类型','消费金额(元)','消费占比','入住间夜','间夜占比','同比'])
+                + trow(['企业协议','70,871.59','20.56%','160','25.52%',yoy(15.3)])
+                + trow(['差旅壹号协议','49,456.00','14.35%','128','20.41%',yoy(9.8)])
+                + trow(['其他','224,315.86','65.09%','339','54.07%',yoy(-4.2)]))+'</div></div>'
         +   '<div class="dist-block"><div class="sec-title">酒店协议消费分布</div>'
         +     donut([{pct:79.44,color:C.blue},{pct:20.56,color:C.purple}],[{color:C.purple,label:'协议(20.56%)'},{color:C.blue,label:'非协议(79.44%)'}])
         +     '<div class="scene-note" style="margin-top:14px">贵司协议消费占比 <b>20.87%</b>，低于商旅水平，可考虑对热门非协议酒店/集团补充签约，并提升协议可订率。</div></div>'
@@ -1083,13 +1663,13 @@
 
     'con-air': { crumb:'消费报告_机票', extraFilter: ssField('国内/国际',['全部','国内','仅国际'],''), render:function(){
       return '<div class="ov-top">'
-        +   '<div class="metric-block"><div class="sec-title">机票成交净价</div><div class="big-amount">516,644元</div>'+subs(['出票张数 <b>245张</b>'])+'</div>'
+        +   '<div class="metric-block"><div class="sec-title">机票成交净价</div><div class="big-amount">516,644元</div>'+subs(['出票张数 <b>245张</b>','成交净价同比 '+yoy(12.4)])+'</div>'
         + '</div>'
         + '<div class="row mt" style="margin-top:30px">'
         +   '<div style="flex:1;min-width:300px"><div class="sec-title">各舱等成交净价分布</div>'+donut([{pct:72.93,color:C.orange},{pct:27.07,color:C.blue}],[{color:C.orange,label:'公务舱(72.93%)'},{color:C.blue,label:'经济舱(27.07%)'}])+'</div>'
-        +   '<div style="flex:1;min-width:340px"><div class="sec-title">各舱等成交净价</div>'+tableW(thead(['舱等类型','成交净价','成交净价占比','出票张数'])
-        +     trow(['经济舱','139,844.00元','27.07%','125'])
-        +     trow(['公务舱','376,800.00元','72.93%','120']))+'</div>'
+        +   '<div style="flex:1;min-width:340px"><div class="sec-title">各舱等成交净价</div>'+tableW(thead(['舱等类型','成交净价','成交净价占比','出票张数','同比'])
+        +     trow(['经济舱','139,844.00元','27.07%','125',yoy(-6.8)])
+        +     trow(['公务舱','376,800.00元','72.93%','120',yoy(19.5)]))+'</div>'
         + '</div>'
         + '<div class="row mt" style="margin-top:30px">'
         +   '<div style="flex:1;min-width:340px"><div class="sec-title">票均成交净价（贵司 2,503.15元 / 商旅 1,049.12元）</div>'
@@ -1149,12 +1729,6 @@
         +   '<div style="flex:1;min-width:340px"><div class="sec-title">机票出行场景消费情况</div>'+tableW(thead(['机票出行场景','消费金额','消费金额占比','差旅服务费','机票出票张数','成交净价','平均成交净价'])
               + trow(['出差','608,801.00元','100.00%','0.00元','245','516,644.00元','2,108.75元']))+'</div>'
         + '</div>'
-        + '<div class="sec-title mt">热门航线 TOP15（成交净价）</div>'
-        + vbar([{label:'上海-上海',val:92330,disp:'92,330'},{label:'成都-成都',val:68250,disp:'68,250'},{label:'成都-北京',val:30894,disp:'30,894'},{label:'新加坡-伦敦',val:30840,disp:'30,840'},{label:'伦敦-成都',val:25950,disp:'25,950'},{label:'北京-成都',val:24704,disp:'24,704'},{label:'上海-成都',val:16992,disp:'16,992'},{label:'深圳-成都',val:15840,disp:'15,840'},{label:'上海-西双版纳',val:15480,disp:'15,480'},{label:'成都-珠海',val:13530,disp:'13,530'},{label:'北京-上海',val:13440,disp:'13,440'},{label:'上海-香港',val:13205,disp:'13,205'},{label:'上海-北京',val:12600,disp:'12,600'},{label:'成都-上海',val:11961,disp:'11,961'},{label:'广州-北京',val:10510,disp:'10,510'}],{color:C.blue,barw:24})
-        + '<div class="sec-title mt">热门出发城市 TOP15（成交净价）</div>'
-        + vbar([{label:'上海',val:169640,disp:'169,640'},{label:'成都',val:146355,disp:'146,355'},{label:'北京',val:71354,disp:'71,354'},{label:'伦敦',val:27145,disp:'27,145'},{label:'广州',val:21803,disp:'21,803'},{label:'深圳',val:20590,disp:'20,590'},{label:'武汉',val:10640,disp:'10,640'},{label:'西双版纳',val:7920,disp:'7,920'},{label:'厦门',val:7370,disp:'7,370'},{label:'林芝',val:5490,disp:'5,490'},{label:'哈尔滨',val:2969,disp:'2,969'},{label:'齐齐哈尔',val:2880,disp:'2,880'},{label:'重庆',val:2400,disp:'2,400'},{label:'长沙',val:2190,disp:'2,190'},{label:'海口',val:2130,disp:'2,130'}],{color:C.blue,barw:24})
-        + '<div class="sec-title mt">热门到达城市 TOP15（成交净价）</div>'
-        + vbar([{label:'成都',val:168902,disp:'168,902'},{label:'上海',val:143257,disp:'143,257'},{label:'北京',val:77319,disp:'77,319'},{label:'伦敦',val:34828,disp:'34,828'},{label:'珠海',val:22760,disp:'22,760'},{label:'西双版纳',val:15480,disp:'15,480'},{label:'武汉',val:12680,disp:'12,680'},{label:'香港',val:12600,disp:'12,600'},{label:'深圳',val:11300,disp:'11,300'},{label:'林芝',val:8860,disp:'8,860'},{label:'厦门',val:6780,disp:'6,780'},{label:'哈尔滨',val:4526,disp:'4,526'},{label:'青岛',val:3140,disp:'3,140'},{label:'长春',val:3070,disp:'3,070'},{label:'吉隆坡',val:2610,disp:'2,610'}],{color:C.blue,barw:24})
         + '<div class="sec-title mt">超级经济舱成交净价 <span class="new-tag">需求2 新增</span></div>'
         + '<div class="row"><div style="flex:1;min-width:280px">'
         +   donut([{pct:12.5,color:C.orange},{pct:87.5,color:C.blue}],[{color:C.orange,label:'超级经济舱(12.5%)'},{color:C.blue,label:'非超级经济舱(87.5%)'}])
@@ -1163,16 +1737,22 @@
         +     '<tr><td>超级经济舱</td><td>28,500.00元</td><td>18</td><td>0.62</td><td>12.5%</td><td>'+yoy(15.2)+'</td></tr></table>'
         + '</div></div>'
         + overStandardTable('机票','186','7.2%','15,300.00元',12.0)
-        + compareSection('air')
+        + '<div class="sec-title mt">热门航线 TOP15（成交净价）</div>'
+        + vbar([{label:'上海-上海',val:92330,disp:'92,330'},{label:'成都-成都',val:68250,disp:'68,250'},{label:'成都-北京',val:30894,disp:'30,894'},{label:'新加坡-伦敦',val:30840,disp:'30,840'},{label:'伦敦-成都',val:25950,disp:'25,950'},{label:'北京-成都',val:24704,disp:'24,704'},{label:'上海-成都',val:16992,disp:'16,992'},{label:'深圳-成都',val:15840,disp:'15,840'},{label:'上海-西双版纳',val:15480,disp:'15,480'},{label:'成都-珠海',val:13530,disp:'13,530'},{label:'北京-上海',val:13440,disp:'13,440'},{label:'上海-香港',val:13205,disp:'13,205'},{label:'上海-北京',val:12600,disp:'12,600'},{label:'成都-上海',val:11961,disp:'11,961'},{label:'广州-北京',val:10510,disp:'10,510'}],{color:C.blue,barw:24})
+        + '<div class="sec-title mt">热门出发城市 TOP15（成交净价）</div>'
+        + vbar([{label:'上海',val:169640,disp:'169,640'},{label:'成都',val:146355,disp:'146,355'},{label:'北京',val:71354,disp:'71,354'},{label:'伦敦',val:27145,disp:'27,145'},{label:'广州',val:21803,disp:'21,803'},{label:'深圳',val:20590,disp:'20,590'},{label:'武汉',val:10640,disp:'10,640'},{label:'西双版纳',val:7920,disp:'7,920'},{label:'厦门',val:7370,disp:'7,370'},{label:'林芝',val:5490,disp:'5,490'},{label:'哈尔滨',val:2969,disp:'2,969'},{label:'齐齐哈尔',val:2880,disp:'2,880'},{label:'重庆',val:2400,disp:'2,400'},{label:'长沙',val:2190,disp:'2,190'},{label:'海口',val:2130,disp:'2,130'}],{color:C.blue,barw:24})
+        + '<div class="sec-title mt">热门到达城市 TOP15（成交净价）</div>'
+        + vbar([{label:'成都',val:168902,disp:'168,902'},{label:'上海',val:143257,disp:'143,257'},{label:'北京',val:77319,disp:'77,319'},{label:'伦敦',val:34828,disp:'34,828'},{label:'珠海',val:22760,disp:'22,760'},{label:'西双版纳',val:15480,disp:'15,480'},{label:'武汉',val:12680,disp:'12,680'},{label:'香港',val:12600,disp:'12,600'},{label:'深圳',val:11300,disp:'11,300'},{label:'林芝',val:8860,disp:'8,860'},{label:'厦门',val:6780,disp:'6,780'},{label:'哈尔滨',val:4526,disp:'4,526'},{label:'青岛',val:3140,disp:'3,140'},{label:'长春',val:3070,disp:'3,070'},{label:'吉隆坡',val:2610,disp:'2,610'}],{color:C.blue,barw:24})
         + reqbox([ R1(),
+            {t:'<b>需求19</b>：本页内嵌「企业/核算主体/部门对比」已<b>迁出至独立「对比报告 → 消费报告对比」</b>', id:'—', tag:'优化'},
             {t:'<b>需求13</b>：因私出行（机票）已<b>迁出消费报告</b>，统一收口到独立「因私报告」，便于单独配置可见权限', id:'2502913', tag:'优化'},
             {t:'<b>需求2</b>：新增「超级经济舱成交净价」图表（成交净价/出票张数/平均折扣/占经济舱比例）— ✅本页已落地', id:'2502907', tag:'新增'},
             {t:'<b>需求5</b>：新增「国内/国际/全部」筛选拆分，图表随之联动 — ✅本页已落地', id:'2502804', tag:'新增'},
             {t:'<b>需求7</b>：新增「超标情况」表（超标明细数/超标率/超标个人支付，可按企业配置）— ✅本页已落地', id:'2602770', tag:'新增'} ]);
     }},
-    'con-hotel': { crumb:'消费报告_酒店', extraFilter: ssField('国内/国际',['全部','国内','仅国际'],''), render:function(){
+    'con-hotel': { crumb:'消费报告_酒店', render:function(){
       return '<div class="ov-top">'
-        +   '<div class="metric-block"><div class="sec-title">酒店消费金额</div><div class="big-amount">339,591.45元</div>'+subs(['间夜均价(贵司) <b>571.70元</b>','间夜均价(商旅) <b>346.85元</b>'])+'</div>'
+        +   '<div class="metric-block"><div class="sec-title">酒店消费金额</div><div class="big-amount">339,591.45元</div>'+subs(['间夜均价(贵司) <b>571.70元</b>','间夜均价(商旅) <b>346.85元</b>','酒店消费金额同比 '+yoy(12.8)])+'</div>'
         +   '<div class="dist-block"><div class="sec-title">酒店星级消费分布</div>'+donut([{pct:44.21,color:C.purple},{pct:24.96,color:C.orange},{pct:17.05,color:C.blue},{pct:12.95,color:C.teal},{pct:0.83,color:C.train}],[{color:C.blue,label:'二星/经济型及以下(17.05%)'},{color:C.orange,label:'三星级/舒适型(24.96%)'},{color:C.purple,label:'四星级/高档型(44.21%)'},{color:C.teal,label:'五星级/豪华型(12.95%)'},{color:C.train,label:'其他(0.83%)'}])+'</div>'
         + '</div>'
         + '<div class="sec-title mt">酒店等级消费分布</div>'
@@ -1240,6 +1820,7 @@
               + trow(['4间夜','15,841.00','4.60%','17','64'])
               + trow(['5间夜','31,189.00','9.05%','7','40']))+moreBar(9,2)+'</div>'
         + '</div>'
+        + overStandardTable('酒店','240','9.1%','22,800.00元',8.0)
         + '<div class="sec-title mt">酒店等级消费分析</div>'
         + tableW(thead(['是否北上广深城市','酒店等级分类','入住间夜','入住间夜占比','消费金额','间夜均价','差旅服务费'])
             + trow(['其他','四星级/高档型','212','33.81%','152,376.51元','723.67','92.00元'])
@@ -1264,9 +1845,8 @@
             + trow(['差旅壹号会员酒店','差旅壹号其他资源','218','278','44.34%','148,849.36元','43.19%','563.40元','9.00元'])
             + trow(['线下代购','线下代购','34','77','12.28%','83,285.50元','24.17%','1,123.18元','300.00元'])
             + trow(['合计','—','405','627','100%','344,643.45元','100%','564.90元','309.00元'],true))
-        + overStandardTable('酒店','240','9.1%','22,800.00元',8.0)
-        + compareSection('hotel')
         + reqbox([ R1(),
+            {t:'<b>需求19</b>：本页内嵌「企业/核算主体/部门对比」已<b>迁出至独立「对比报告 → 消费报告对比」</b>', id:'—', tag:'优化'},
             {t:'<b>需求13</b>：因私出行（酒店）已<b>迁出消费报告</b>，统一收口到独立「因私报告」，便于单独配置可见权限', id:'2502913', tag:'优化'},
             {t:'<b>需求5</b>：新增「国内/国际/全部」筛选拆分 — ✅本页已落地', id:'2502804', tag:'新增'},
             {t:'<b>需求12</b>：热门酒店 / 酒店集团 / 入住城市 TOP15 柱子<b>悬停 tooltip</b> 展示 消费金额 / 预订间夜 / 间夜均价 / <b>同比</b>（保留柱状图，<b>不另加明细表</b>）— ✅本页已落地', id:'2600698', tag:'新增'},
@@ -1274,7 +1854,7 @@
     }},
     'con-train': { crumb:'消费报告_火车票', render:function(){
       return '<div class="ov-top">'
-        +   '<div class="metric-block"><div class="sec-title">火车票面价</div><div class="big-amount">74,146.00元</div>'+subs(['火车出票张数 <b>355张</b>','平均票价(贵司) <b>219.37元</b>','平均票价(商旅) <b>196.37元</b>'])+'</div>'
+        +   '<div class="metric-block"><div class="sec-title">火车票面价</div><div class="big-amount">74,146.00元</div>'+subs(['火车出票张数 <b>355张</b>','平均票价(贵司) <b>219.37元</b>','平均票价(商旅) <b>196.37元</b>','火车票面价同比 '+yoy(6.2)])+'</div>'
         +   '<div class="dist-block"><div class="sec-title">火车票坐席分布</div>'+donut([{pct:79.16,color:C.orange},{pct:4.6,color:C.blue},{pct:16.24,color:C.teal}],[{color:C.blue,label:'一等座(4.6%)'},{color:C.orange,label:'二等座(79.16%)'},{color:C.teal,label:'其他(16.24%)'}])+'</div>'
         + '</div>'
         + '<div class="sec-title mt">火车平均票价趋势</div>'
@@ -1295,6 +1875,7 @@
               + trow(['出差','74,453.00','99.90%','0.00元','353','74,068.00','216.19元'])
               + trow(['会议会展','78.00','0.10%','0.00元','2','78.00','75.50元']))+'</div>'
         + '</div>'
+        + overStandardTable('火车','18','2.4%','860.00元',-5.0)
         + '<div class="sec-title mt">火车坐席消费情况</div>'
         + tableW(thead(['坐席分类类型','火车票消费金额','消费金额占比','火车出票张数','票面价','票均票面价'])
             + trow(['一等座','3,135.50元','4.21%','10','3,414.00元','328.20元'])
@@ -1310,43 +1891,43 @@
         + vbar([{label:'北京',val:17974,disp:'17,974'},{label:'上海',val:10671,disp:'10,671'},{label:'武汉',val:10143.5,disp:'10,143.50'},{label:'长春',val:4863,disp:'4,863'},{label:'深圳',val:3743.5,disp:'3,743.50'},{label:'西安',val:2753.5,disp:'2,753.50'},{label:'杭州',val:2231,disp:'2,231'},{label:'成都',val:2022,disp:'2,022'},{label:'哈尔滨',val:1962,disp:'1,962'},{label:'重庆',val:1751,disp:'1,751'},{label:'连云港',val:1676,disp:'1,676'},{label:'齐齐哈尔',val:1382,disp:'1,382'},{label:'无锡',val:1276,disp:'1,276'},{label:'厦门',val:1180,disp:'1,180'},{label:'南京',val:940,disp:'940'}],{color:C.blue,barw:24})
         + '<div class="sec-title mt">热门到达城市 TOP15（火车票面价）</div>'
         + vbar([{label:'北京',val:16295,disp:'16,295'},{label:'上海',val:11567,disp:'11,567'},{label:'武汉',val:8991,disp:'8,991'},{label:'长春',val:4862,disp:'4,862'},{label:'深圳',val:3397,disp:'3,397'},{label:'成都',val:2379,disp:'2,379'},{label:'杭州',val:2378,disp:'2,378'},{label:'连云港',val:2234,disp:'2,234'},{label:'西安',val:2189.5,disp:'2,189.50'},{label:'南京',val:1999,disp:'1,999'},{label:'重庆',val:1984,disp:'1,984'},{label:'齐齐哈尔',val:1695,disp:'1,695'},{label:'哈尔滨',val:1647,disp:'1,647'},{label:'厦门',val:1284,disp:'1,284'},{label:'潍坊',val:1119,disp:'1,119'}],{color:C.blue,barw:24})
-        + overStandardTable('火车','18','2.4%','860.00元',-5.0)
-        + compareSection('train')
         + reqbox([ R1(),
+            {t:'<b>需求19</b>：本页内嵌「企业/核算主体/部门对比」已<b>迁出至独立「对比报告 → 消费报告对比」</b>', id:'—', tag:'优化'},
             {t:'<b>需求13</b>：因私出行（火车）已<b>迁出消费报告</b>，统一收口到独立「因私报告」，便于单独配置可见权限', id:'2502913', tag:'优化'},
             {t:'<b>需求7</b>：新增「超标情况」表（超标明细数/超标率/超标个人支付，可按企业配置）— ✅本页已落地', id:'2602770', tag:'新增'},
             {t:'修复火车数据清洗问题', id:'2500100', tag:'优化'} ]);
     }},
     'con-car': { crumb:'消费报告_用车', render:function(){
       return '<div class="ov-top">'
-        +   '<div class="metric-block"><div class="sec-title">用车消费金额</div><div class="big-amount">792,615.07元</div>'+subs(['用车次数 <b>21,492</b>','行程均价(贵司) <b>36.88元</b>','行程均价(商旅) <b>54.72元</b>'])+'</div>'
-        +   '<div class="dist-block"><div class="sec-title">用车车型消费分布</div>'+donut([{pct:47.52,color:C.blue},{pct:46.5,color:C.orange},{pct:5.9,color:C.purple},{pct:0.08,color:C.teal}],[{color:C.blue,label:'经济型(47.52%)'},{color:C.orange,label:'舒适型(46.5%)'},{color:C.purple,label:'商务型(5.9%)'},{color:C.teal,label:'豪华型(0.08%)'}])+'</div>'
+        +   '<div class="metric-block"><div class="sec-title">用车消费金额</div><div class="big-amount">792,615.07元</div>'+subs(['用车次数 <b>21,492</b>','行程均价(贵司) <b>36.88元</b>','行程均价(商旅) <b>54.72元</b>','用车消费金额同比 '+yoy(18.7)])+'</div>'
+        +   '<div class="dist-block"><div class="sec-title">用车车型消费分布 <span class="new-tag">需求4 新增</span></div>'
+        +     donut([{pct:47.52,color:C.blue},{pct:46.5,color:C.orange},{pct:5.9,color:C.purple},{pct:0.08,color:C.teal}],
+                  [{color:C.blue,label:'经济型(47.52%)'},{color:C.orange,label:'舒适型(46.5%)'},{color:C.purple,label:'商务型(5.9%)'},{color:C.teal,label:'豪华型(0.08%)'}],
+                  ['用车车型：经济型||用车消费金额：376,651元(47.52%)||用车均价：36.89元||用车产品数：10,210',
+                   '用车车型：舒适型||用车消费金额：368,566元(46.50%)||用车均价：37.08元||用车产品数：9,940',
+                   '用车车型：商务型||用车消费金额：46,764元(5.90%)||用车均价：36.88元||用车产品数：1,268',
+                   '用车车型：豪华型||用车消费金额：634元(0.08%)||用车均价：8.57元||用车产品数：74'])
+        +   '</div>'
         + '</div>'
         + '<div class="sec-title mt">行程均价趋势</div>'
         + lineChart(['2026-1','2026-2','2026-3','2026-4','2026-5','2026-6'],[{name:'行程均价(贵司)',color:C.blue,vals:[36.36,36.43,35.56,38.77,38.26,36.45]},{name:'行程均价(商旅)',color:C.orange,vals:[54.83,54.83,54.83,54.54,54.54,54.54]}])
-        + '<div class="sec-title mt">用车车型消费分布（含订单数、车型均价 <span class="new-tag">需求4 新增</span>）</div>'
-        + '<table class="tbl"><tr><th>车型</th><th>消费金额</th><th>消费占比</th><th>订单数 <span class="new-tag sm">新</span></th><th>车型均价 <span class="new-tag sm">新</span></th></tr>'
-        +   '<tr><td>经济型</td><td>376,651元</td><td>47.52%</td><td>10,210</td><td>36.89元</td></tr>'
-        +   '<tr><td>舒适型</td><td>368,566元</td><td>46.50%</td><td>9,940</td><td>37.08元</td></tr>'
-        +   '<tr><td>商务型</td><td>46,764元</td><td>5.90%</td><td>1,268</td><td>36.88元</td></tr>'
-        +   '<tr><td>豪华型</td><td>634元</td><td>0.08%</td><td>74</td><td>8.57元</td></tr></table>'
         + '<div class="row mt" style="margin-top:30px">'
         +   '<div style="flex:1;min-width:300px"><div class="sec-title">用车类型分布</div>'+vbar([{label:'实时用车',val:97.35,disp:'97.35%'},{label:'预约用车',val:2.2,disp:'2.2%'},{label:'接送机',val:0.4,disp:'0.4%'},{label:'接送站',val:0.05,disp:'0.05%'}],{color:C.blue,unit:'%',barw:40})+'</div>'
-        +   '<div style="flex:1;min-width:300px"><div class="sec-title">用车时间段分布 <span class="opt-tag">点击柱子下穿明细</span></div>'+vbar([{label:'0-6',val:33.32,disp:'33.32%',drill:'0-6',cnt:7161},{label:'6-8',val:12.86,disp:'12.86%',drill:'6-8',cnt:2764},{label:'8-10',val:6.13,disp:'6.13%',drill:'8-10',cnt:1317},{label:'10-12',val:2.34,disp:'2.34%',drill:'10-12',cnt:503},{label:'12-14',val:2.14,disp:'2.14%',drill:'12-14',cnt:460},{label:'14-16',val:2.09,disp:'2.09%',drill:'14-16',cnt:449},{label:'16-18',val:2.65,disp:'2.65%',drill:'16-18',cnt:569},{label:'18-20',val:3.01,disp:'3.01%',drill:'18-20',cnt:647},{label:'20-22',val:4.39,disp:'4.39%',drill:'20-22',cnt:943},{label:'22-24',val:31.07,disp:'31.07%',drill:'22-24',cnt:6678}],{color:C.blue,unit:'%',barw:24})+'</div>'
+        +   '<div style="flex:1;min-width:300px"><div class="sec-title">用车时间段分布 <span class="opt-tag">点击柱子跳转消费与节省明细</span></div>'+vbar([{label:'0-6',val:33.32,disp:'33.32%',drill:'0-6',cnt:7161},{label:'6-8',val:12.86,disp:'12.86%',drill:'6-8',cnt:2764},{label:'8-10',val:6.13,disp:'6.13%',drill:'8-10',cnt:1317},{label:'10-12',val:2.34,disp:'2.34%',drill:'10-12',cnt:503},{label:'12-14',val:2.14,disp:'2.14%',drill:'12-14',cnt:460},{label:'14-16',val:2.09,disp:'2.09%',drill:'14-16',cnt:449},{label:'16-18',val:2.65,disp:'2.65%',drill:'16-18',cnt:569},{label:'18-20',val:3.01,disp:'3.01%',drill:'18-20',cnt:647},{label:'20-22',val:4.39,disp:'4.39%',drill:'20-22',cnt:943},{label:'22-24',val:31.07,disp:'31.07%',drill:'22-24',cnt:6678}],{color:C.blue,unit:'%',barw:24})+'</div>'
         + '</div>'
         + '<div class="sec-title mt">混付用车次数 277（混付总金额 20,177.34元 / 混付用车占比 1.44%）</div>'
         + '<div class="row"><div style="flex:1;min-width:280px">'+hbarStack([{name:'混付支付',segs:[{v:17181.36,color:C.blue,disp:'17,181.36元(85%)'},{v:2995.98,color:C.orange,disp:'2,995.98元(15%)'}]}],[{color:C.blue,label:'企业支付'},{color:C.orange,label:'个人支付'}])+'</div>'
         +   '<div style="flex:1;min-width:280px"><div class="sec-title">混付用车次数趋势</div>'+vbar([{label:'2026-1',val:78},{label:'2026-2',val:57},{label:'2026-3',val:48},{label:'2026-4',val:58},{label:'2026-5',val:36}],{color:C.blue,barw:34})+'</div></div>'
         + '<div class="row mt" style="margin-top:24px">'
         +   '<div style="flex:1;min-width:300px"><div class="sec-title">用车场景类型</div>'+donut([{pct:64.65,color:C.meal},{pct:23.87,color:C.orange},{pct:9.37,color:C.blue},{pct:1.52,color:C.teal},{pct:0.44,color:C.purple},{pct:0.16,color:C.train}],[{color:C.meal,label:'21:30以后市内用车(64.65%)'},{color:C.orange,label:'客满通宵班次上班用车(23.87%)'},{color:C.blue,label:'出差(9.37%)'},{color:C.teal,label:'市内因公出行(1.52%)'},{color:C.purple,label:'会议会展(0.44%)'},{color:C.train,label:'商务接待(0.16%)'}])+'</div>'
-        +   '<div style="flex:1;min-width:360px"><div class="sec-title">用车场景消费情况 <span class="opt-tag">点击行下穿明细</span></div>'+tableW(thead(['用车场景类型','用车消费金额','消费占比','差旅服务费','订单数量','行程均价'])
+        +   '<div style="flex:1;min-width:360px"><div class="sec-title">用车场景消费情况 <span class="opt-tag">点击行跳转消费与节省明细</span></div>'+tableW(thead(['用车场景类型','用车消费金额','消费占比','差旅服务费','订单数量','行程均价'])
               + drillRow('21:30以后市内用车',12465,['21:30以后市内用车','438,867.37元','61.92%','0.00元','12,465','37.63元'])
               + drillRow('客满通宵班次上班用车',4600,['客满通宵班次上班用车','123,118.41元','17.37%','0.00元','4,600','27.47元'])
               + drillRow('出差',1807,['出差','121,054.83元','17.08%','0.00元','1,807','67.67元'])
               + drillRow('市内因公出行',294,['市内因公出行','14,392.61元','2.03%','0.00元','294','49.39元'])
               + drillRow('会议会展',84,['会议会展','7,638.42元','1.08%','0.00元','84','90.93元']))+moreBar(6,1)+'</div>'
         + '</div>'
-        + '<div id="carDrill" class="drill-box" style="display:none"></div>'
+        + overStandardTable('用车','312','3.0%','6,400.00元',6.5)
         + '<div class="sec-title mt">用车次数 / 行驶里程 / 行驶用时 TOP1 城市</div>'
         + infoCards([{title:'用车次数TOP1城市',rows:[{k:'用车城市',v:'成都'},{k:'出行次数',v:'17,585'}]},
             {title:'行驶里程TOP1城市',rows:[{k:'用车城市',v:'成都'},{k:'出行里程',v:'195,587.57km'}]},
@@ -1378,16 +1959,140 @@
               + trow(['首汽约车','27,946.20元','3.94%','487','59.71元','4.17元'])
               + trow(['T3出行','27,887.71元','3.93%','791','37.13元','2.26元']))+moreBar(51,6)+'</div>'
         + '</div>'
-        + overStandardTable('用车','312','3.0%','6,400.00元',6.5)
-        + compareSection('car')
         + reqbox([ R1(),
             {t:'<b>需求4</b>：「用车车型消费分布」按车型补齐<b>订单数、车型均价</b>（参照用车类型分布展示方式）— ✅本页已落地', id:'2503720', tag:'新增'},
             {t:'<b>需求7</b>：新增「超标情况」表（超标明细数/超标率/超标个人支付，可按企业配置）— ✅本页已落地', id:'2602770', tag:'新增'},
             {t:'<b>需求13</b>：因私出行（用车）已<b>迁出消费报告</b>，统一收口到独立「因私报告」，便于单独配置可见权限', id:'2502913', tag:'优化'},
-            {t:'用车明细导出（含成本中心）', id:'2501799', tag:'新增'} ]);
+            {t:'<b>需求11</b>：用车<b>时间段分布</b>柱子 / <b>用车场景消费情况</b>表行<b>点击跳转「消费与节省明细 · 用车」</b>并带入查询条件（用车场景类型 / 时间段 / 交易时间），明细页可逐笔查看并导出（受数据权限约束 + 量级控制）— ✅本页已落地', id:'2501799', tag:'新增'} ]);
     }},
 
-    /* ---------- 因私报告（需求13：从各消费报告抽出，独立成报告，权限单独配置） ---------- */
+    /* ---------- 消费与节省明细（按业务线分开；用于消费明细查看筛选 + 导出；数据源 *ConsumptionDetail，字段取全） ---------- */
+    /* ---------- 对比报告（需求19：左图右表单页；helper = comparePageAll） ---------- */
+    'cmp-all': { crumb:'对比报告_报告对比', render:function(){
+      return comparePageAll()
+        + reqbox([ R1(),
+            {t:'<b>需求19</b>：对比从各报告抽出独立成「对比报告」单页，<b>左图右表</b>、一个维度切换联动 ① 消费对比 ② 节省金额 ③ 潜在节省 ④ 各业务线节省 — ✅本页已落地', id:'—', tag:'新增'} ]);
+    }},
+
+    'detail-air': { crumb:'消费与节省明细_机票', render:function(){
+      var cols=['销售订单号','出票订单号','使用时间','交易完成时间','出行人','员工编号','预订人','所属公司','核算单元','成本中心','部门','因公/因私','国内/国际','机票子类型','订单类型','航司','航班号','出发城市','到达城市','舱等','航班起飞时间','提前预订天数','里程(km)','机票消费金额','成交净价','折扣','民航发展基金','燃油费','差旅服务费','改签手续费','退票手续费','是否协议机票','节省金额','超标支付金额','支付类型','商品四级分类'];
+      var rows=[
+        ['SO26031200181','OR26031200181','2026-03-12 08:20','2026-03-10 14:02','张磊','E001234','周斌','示例科技有限公司','华东核算单元','成本中心A','市场部','因公','国内','国内协议','出票','中国国航','CA1501','北京','上海','经济舱','2026-03-12 08:20','9','1080','1,480.00','1,326.00','0.78','50.00','60.00','30.00','0.00','0.00','是','120.00','0.00','月结','协议产品'],
+        ['SO26032500233','OR26032500233','2026-03-25 19:05','2026-03-23 10:21','李强','E002871','郭红','示例科技有限公司','华南核算单元','成本中心B','销售部','因公','国内','国内非协议','改签','东方航空','MU5302','上海','广州','经济舱','2026-03-25 19:05','3','1200','980.00','880.00','0.85','50.00','40.00','30.00','50.00','0.00','否','0.00','60.00','现付','普通'],
+        ['SO26041000455','OR26041000455','2026-04-10 13:00','2026-04-02 09:40','王敏','E003355','孙燕','示例制造集团','华北核算单元','成本中心C','研发部','因公','国际','国际协议','出票','中国国航','CA981','北京','纽约','公务舱','2026-04-10 13:00','21','11000','18,400.00','16,800.00','0.62','0.00','0.00','200.00','0.00','0.00','是','1,840.00','0.00','月结','协议产品'],
+        ['SO26042200677','OR26042200677','2026-04-22 07:45','2026-04-21 22:10','刘洋','E004102','朱琳','示例制造集团','华北核算单元','成本中心C','行政部','因私','国内','国内非协议','出票','南方航空','CZ3104','广州','成都','经济舱','2026-04-22 07:45','1','1300','1,120.00','1,008.00','0.72','50.00','70.00','30.00','0.00','0.00','否','0.00','0.00','现付','官网']
+      ];
+      return jumpBanner('air')+'<div class="callout">📄 <b>消费与节省明细 · 机票</b>：用于<b>机票消费明细的查看筛选与导出</b>，数据来源 <b>AirTicketConsumptionDetail（机票消费明细表）</b>，按业务线分开。字段取全、枚举项均可筛选。</div>'
+        + dFilters([
+            {label:'因公/因私',opts:['全部','因公','因私']},
+            {label:'国内/国际',opts:['全部','国内','国际']},
+            {label:'机票子类型',opts:['全部','国内协议','国际协议','国内非协议','国际非协议']},
+            {label:'订单类型',opts:['全部','出票','改签','退票','差额退款']},
+            {label:'舱等类型',opts:['全部','经济舱','公务舱','头等舱']},
+            {label:'是否超级经济舱',opts:['全部','是','否']},
+            {label:'是否高等舱位',opts:['全部','是','否']},
+            {label:'是否协议机票',opts:['全部','是','否']},
+            {label:'是否协议航司',opts:['全部','是','否']},
+            {label:'航司',opts:['全部','中国国航','东方航空','南方航空','海南航空','深圳航空','厦门航空','吉祥航空','春秋航空']},
+            {label:'支付类型',opts:['全部','月结','预存','现付','未知']},
+            {label:'商品四级分类',opts:['全部','普通','官网','公务员','协议产品']},
+            {label:'是否存在退改',opts:['全部','是','否']},
+            {label:'机票疑似异常',opts:['全部','无','退款至个人账户','存在未出行客票']},
+            {label:'出发城市',type:'text',ph:'城市'},
+            {label:'到达城市',type:'text',ph:'城市'},
+            {label:'出行人',type:'text',ph:'姓名/员工编号'},
+            {label:'订单号',type:'text',ph:'销售/出票订单号'},
+            {label:'航班起飞时间',type:'date'},
+            {label:'使用时间',type:'date'},
+            {label:'交易完成时间',type:'date'} ])
+        + '<div class="sec-title mt">机票消费明细 <span class="new-tag">新增</span> <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
+        + '<div class="hint">字段取全，表格可<b>左右滚动</b>查看；导出 / 下穿订单受<b>数据权限约束 + 量级控制</b>（遵循全局导出原则）。</div>'
+        + tableW(thead(cols)+rows.map(function(r){return trow(r);}).join(''))
+        + moreBar(862,173)
+        + reqbox([ {t:'<b>新增</b>：独立「消费与节省明细」按业务线分开（机票/酒店/火车/用车），<b>字段取全 + 枚举全可筛选</b>，用于<b>查看筛选 + 导出</b>；机票数据源 <b>AirTicketConsumptionDetail</b> — ✅本页已落地', id:'—', tag:'新增'} ]);
+    }},
+    'detail-hotel': { crumb:'消费与节省明细_酒店', render:function(){
+      var cols=['销售订单号','出票订单号','入住时间','离店时间','交易完成时间','出行人','员工编号','预订人','所属公司','核算单元','成本中心','部门','因公/因私','国内/国际','酒店名称','酒店集团','所在城市','是否协议酒店','是否商务及以上房型','入住间夜','酒店消费金额','酒店房价','间夜均价','企业支付金额','超标个人支付','超标订单支付','节省金额','节省类型','是否混付'];
+      var rows=[
+        ['HO26031200181','OR26031200181','2026-03-12','2026-03-13','2026-03-13 12:00','张磊','E001234','周斌','示例科技有限公司','华东核算单元','成本中心A','市场部','因公','国内','全季(上海徐家汇店)','华住集团','上海','是','否','1','360.00','360.00','360.00','360.00','0.00','0.00','60.00','OTA节省','否'],
+        ['HO26032500233','OR26032500233','2026-03-25','2026-03-27','2026-03-27 12:00','李强','E002871','郭红','示例科技有限公司','华南核算单元','成本中心B','销售部','因公','国内','成都宽窄巷子城际酒店','锦江集团','成都','是','否','2','1,180.00','1,180.00','590.00','1,180.00','0.00','0.00','90.00','集团协议节省','否'],
+        ['HO26041000455','OR26041000455','2026-04-10','2026-04-12','2026-04-12 12:00','王敏','E003355','孙燕','示例制造集团','华北核算单元','成本中心C','研发部','因公','国内','北京诺富特酒店','雅高集团','北京','否','是','2','970.00','970.00','485.00','800.00','170.00','170.00','75.00','OTA节省','是'],
+        ['HO26042200677','OR26042200677','2026-04-22','2026-04-24','2026-04-24 12:00','刘洋','E004102','朱琳','示例制造集团','华北核算单元','成本中心C','行政部','因私','国际','新加坡滨海湾金沙','金沙集团','新加坡','否','是','2','3,600.00','3,600.00','1,800.00','0.00','3,600.00','0.00','0.00','—','否']
+      ];
+      return jumpBanner('hotel')+'<div class="callout">📄 <b>消费与节省明细 · 酒店</b>：用于<b>酒店消费明细的查看筛选与导出</b>，数据来源 <b>HotelConsumptionDetail（酒店消费明细表）</b>，按业务线分开。字段取全、枚举项均可筛选。</div>'
+        + dFilters([
+            {label:'因公/因私',opts:['全部','因公','因私']},
+            {label:'国内/国际',opts:['全部','国内','国际']},
+            {label:'是否协议酒店',opts:['全部','是','否']},
+            {label:'是否商务及以上房型',opts:['全部','是','否']},
+            {label:'是否混付订单',opts:['全部','是','否']},
+            {label:'预订多城市酒店',opts:['全部','是','否']},
+            {label:'节省类型',opts:['全部','集团协议节省','单体协议节省','OTA节省','拼房节省']},
+            {label:'酒店集团',opts:['全部','华住集团','锦江集团','雅高集团','首旅如家','洲际集团','万豪集团','金沙集团']},
+            {label:'所在城市',type:'text',ph:'城市'},
+            {label:'酒店名称',type:'text',ph:'酒店名称'},
+            {label:'出行人',type:'text',ph:'姓名/员工编号'},
+            {label:'订单号',type:'text',ph:'销售/出票订单号'},
+            {label:'入住时间',type:'date'},
+            {label:'交易完成时间',type:'date'} ])
+        + '<div class="sec-title mt">酒店消费明细 <span class="new-tag">新增</span> <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
+        + '<div class="hint">字段取全，表格可<b>左右滚动</b>查看；导出 / 下穿订单受<b>数据权限约束 + 量级控制</b>（遵循全局导出原则）。</div>'
+        + tableW(thead(cols)+rows.map(function(r){return trow(r);}).join(''))
+        + moreBar(913,183)
+        + reqbox([ {t:'<b>新增</b>：消费与节省明细 · 酒店，数据源 <b>HotelConsumptionDetail</b>，字段取全 + 枚举全可筛选，用于查看筛选 + 导出 — ✅本页已落地', id:'—', tag:'新增'} ]);
+    }},
+    'detail-train': { crumb:'消费与节省明细_火车票', render:function(){
+      var cols=['销售订单号','出票订单号','使用时间','交易完成时间','出行人','员工编号','预订人','所属公司','核算单元','成本中心','部门','因公/因私','坐席类型','坐席分类','是否商务及以上坐席','出发城市','到达城市','火车票消费金额','票面价','超标订单支付','外部企业'];
+      var rows=[
+        ['TR26031200181','OR26031200181','2026-03-12 09:30','2026-03-12 10:35','张磊','E001234','周斌','示例科技有限公司','华东核算单元','成本中心A','市场部','因公','二等座','二等座','否','上海','杭州','73.00','73.00','0.00','—'],
+        ['TR26032500233','OR26032500233','2026-03-25 18:00','2026-03-25 19:10','李强','E002871','郭红','示例科技有限公司','华南核算单元','成本中心B','销售部','因公','一等座','一等座','否','广州','深圳','99.50','99.50','0.00','—'],
+        ['TR26041000455','OR26041000455','2026-04-10 14:20','2026-04-10 15:00','王敏','E003355','孙燕','示例制造集团','华北核算单元','成本中心C','研发部','因公','商务座','一等座','是','北京','天津','218.00','218.00','120.00','—'],
+        ['TR26050500899','OR26050500899','2026-05-05 20:10','2026-05-05 21:30','陈静','E005233','胡军','示例物流有限公司','西南核算单元','成本中心D','供应链部','因公','二等座','二等座','否','成都','重庆','154.00','154.00','0.00','外部-示例供应商A']
+      ];
+      return jumpBanner('train')+'<div class="callout">📄 <b>消费与节省明细 · 火车票</b>：用于<b>火车票消费明细的查看筛选与导出</b>，数据来源 <b>TrainConsumptionDetail（火车消费明细表）</b>，按业务线分开。字段取全、枚举项均可筛选。</div>'
+        + dFilters([
+            {label:'因公/因私',opts:['全部','因公','因私']},
+            {label:'坐席类型',opts:['全部','商务座','特等座','一等座','二等座','软卧','硬卧','无座','其他']},
+            {label:'坐席分类',opts:['全部','一等座','二等座','硬卧','其他']},
+            {label:'是否商务及以上坐席',opts:['全部','是','否']},
+            {label:'出发城市',type:'text',ph:'城市'},
+            {label:'到达城市',type:'text',ph:'城市'},
+            {label:'出行人',type:'text',ph:'姓名/员工编号'},
+            {label:'订单号',type:'text',ph:'销售/出票订单号'},
+            {label:'使用时间',type:'date'},
+            {label:'交易完成时间',type:'date'} ])
+        + '<div class="sec-title mt">火车票消费明细 <span class="new-tag">新增</span> <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
+        + '<div class="hint">字段取全，表格可<b>左右滚动</b>查看；导出 / 下穿订单受<b>数据权限约束 + 量级控制</b>（遵循全局导出原则）。</div>'
+        + tableW(thead(cols)+rows.map(function(r){return trow(r);}).join(''))
+        + moreBar(204,41)
+        + reqbox([ {t:'<b>新增</b>：消费与节省明细 · 火车票，数据源 <b>TrainConsumptionDetail</b>，字段取全 + 枚举全可筛选，用于查看筛选 + 导出 — ✅本页已落地', id:'—', tag:'新增'} ]);
+    }},
+    'detail-car': { crumb:'消费与节省明细_用车', render:function(){
+      var cols=['销售订单号','出票订单号','使用时间','交易完成时间','出行人','员工编号','预订人','所属公司','核算单元','成本中心','部门','因公/因私','用车类型','用车车型','同城/跨城','是否商务及以上车型','用车消费金额','超标订单支付','是否有损取消','外部企业'];
+      var rows=[
+        ['CA26031200181','OR26031200181','2026-03-12 06:30','2026-03-12 07:10','张磊','E001234','周斌','示例科技有限公司','华东核算单元','成本中心A','市场部','因公','接送机','舒适','同城','否','58.00','0.00','否','—'],
+        ['CA26032500233','OR26032500233','2026-03-25 21:15','2026-03-25 21:50','李强','E002871','吴刚','示例科技有限公司','华南核算单元','成本中心B','销售部','因公','实时','经济','同城','否','32.00','0.00','否','—'],
+        ['CA26041000455','OR26041000455','2026-04-10 12:40','2026-04-10 14:00','王敏','E003355','孙燕','示例制造集团','华北核算单元','成本中心C','研发部','因公','预约','商务','跨城','是','320.00','80.00','否','—'],
+        ['CA26042200677','OR26042200677','2026-04-22 08:05','2026-04-22 08:30','刘洋','E004102','朱琳','示例制造集团','华北核算单元','成本中心C','行政部','因私','接送站','经济','同城','否','26.00','0.00','是','外部-示例租赁B']
+      ];
+      return jumpBanner('car')+'<div class="callout">📄 <b>消费与节省明细 · 用车</b>：用于<b>用车消费明细的查看筛选与导出</b>，数据来源 <b>CarConsumptionDetail（用车消费明细表）</b>，按业务线分开。字段取全、枚举项均可筛选。</div>'
+        + dFilters([
+            {label:'因公/因私',opts:['全部','因公','因私']},
+            {label:'用车类型',opts:['全部','接送站','接送机','实时','预约','包车日租','租车']},
+            {label:'用车车型',opts:['全部','豪华','商务','舒适','经济']},
+            {label:'同城/跨城',opts:['全部','同城','跨城']},
+            {label:'是否商务及以上车型',opts:['全部','是','否']},
+            {label:'是否有损取消',opts:['全部','是','否']},
+            {label:'出行人',type:'text',ph:'姓名/员工编号'},
+            {label:'订单号',type:'text',ph:'销售/出票订单号'},
+            {label:'使用时间',type:'date'},
+            {label:'交易完成时间',type:'date'} ])
+        + '<div class="sec-title mt">用车消费明细 <span class="new-tag">新增</span> <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
+        + '<div class="hint">字段取全，表格可<b>左右滚动</b>查看；导出 / 下穿订单受<b>数据权限约束 + 量级控制</b>（遵循全局导出原则）。</div>'
+        + tableW(thead(cols)+rows.map(function(r){return trow(r);}).join(''))
+        + moreBar(168,34)
+        + reqbox([ {t:'<b>新增</b>：消费与节省明细 · 用车，数据源 <b>CarConsumptionDetail</b>，字段取全 + 枚举全可筛选，用于查看筛选 + 导出 — ✅本页已落地', id:'—', tag:'新增'} ]);
+    }},
     'priv-all': { crumb:'因私报告_因私出行', render:function(){
       var rows=[
         {n:'机票',  amt:'86,000元',  pct:'37.0%', yoy:8.2,  mom:-3.5, ppl:'42', prod:'58 张',   avg:'1,483元'},
@@ -1431,13 +2136,13 @@
         + '</div>'
         + '<div class="row mt" style="margin-top:24px">'
         +   '<div style="flex:1;min-width:280px">'+card('未出行客票订单数', bigv('1')+subs(['订单总金额 <b>-70.00元</b>']))
-        +     '<div style="margin-top:12px">'+card('机票-未出行客票 TOP3 消费者', tableW(thead(['消费者姓名','员工编号','未出行机票张数','订单总金额'])+trow(['姜元斐','20160721222940752334','1','-70.00元'])))+'</div></div>'
+        +     '<div style="margin-top:12px">'+card('机票-未出行客票 TOP3 消费者', tableW(thead(['消费者姓名','员工编号','未出行机票张数','订单总金额'])+trow(['王敏','20160721222940752334','1','-70.00元'])))+'</div></div>'
         +   '<div style="flex:1;min-width:300px">'+card('场景说明', scene('未出行客票',['员工预订机票后，监测到机票未使用且未办理退款的情况。','<b>未出行客票</b>：未经差旅壹号办理退票，且票号状态仍为"未使用"，判断对应机票可能存在未出行且未办理退票。']))+'</div>'
-        +   '<div style="flex:1;min-width:280px">'+card('未出行客票 TOP10', vbar([{label:'姜元斐',val:1,disp:'1'}],{color:C.blue,barw:40}))+'</div>'
+        +   '<div style="flex:1;min-width:280px">'+card('未出行客票 TOP10', vbar([{label:'王敏',val:1,disp:'1'}],{color:C.blue,barw:40}))+'</div>'
         + '</div>'
         + '<div class="sec-title mt">机票疑似异常订单明细</div>'
         + tableW(thead(['销售订单号','交易完成时间','机票疑似异常场景','票号状态','消费者姓名','员工编号','所属公司','票号','航线','航司','起飞时间'])
-            + trow(['260330073006666327','2026-3-30','存在未出行客票','OPEN_FOR_USE','姜元斐','20160721222940752334','四川示例企业集团有限公司','7812146323430','上海-北京','东航','2026-3-28 7:00']))
+            + trow(['260330073006666327','2026-3-30','存在未出行客票','OPEN_FOR_USE','王敏','20160721222940752334','四川示例企业集团有限公司','7812146323430','上海-北京','东航','2026-3-28 7:00']))
         + reqbox([ R1(),
             {t:'<b>需求7</b>：超标消费明细数/超标率/超标个人支付 已落到<b>消费报告四业务线</b>「超标情况」表（可按企业配置）', id:'2602770', tag:'新增'},
             {t:'合规报告 UI 优化（字段排序）', id:'2503284', tag:'优化'},
@@ -1448,32 +2153,33 @@
         + '<div class="row">'
         +   '<div style="flex:1;min-width:280px">'+card('疑似酒店行程冲突-预估浪费间夜', bigv('18')+subs(['预估浪费金额 <b>12,230.50元</b>']))
         +     '<div style="margin-top:12px">'+card('预估浪费间夜 TOP3 消费者', tableW(thead(['消费者姓名','员工编号','预估浪费间夜','预估浪费金额'])
-              + trow(['姜元斐','20160721222940752334','9','3,858.00元'])
-              + trow(['周琳','20160615092159473114','3','5,637.00元'])
-              + trow(['陆玉兰','20190218162611176186','3','1,326.00元'])))+'</div></div>'
+              + trow(['王敏','20160721222940752334','9','3,858.00元'])
+              + trow(['李强','20160615092159473114','3','5,637.00元'])
+              + trow(['刘洋','20190218162611176186','3','1,326.00元'])))+'</div></div>'
         +   '<div style="flex:1;min-width:300px">'+card('场景说明', scene('疑似酒店行程冲突',['员工预订酒店后，在入离时间内存在其他城市的机票/火车/用车订单，判断为疑似酒店行程冲突。','<b>提前离店</b>：入离时间内有其他城市关联行程且未退酒店间夜。','<b>中途离开</b>：入住后存在其他城市关联行程且未退间夜。','<b>推迟入住</b>：到达酒店城市的行程晚于入住时间，且未退间夜。']))+'</div>'
-        +   '<div style="flex:1;min-width:280px">'+card('预估浪费间夜 TOP10', vbar([{label:'姜元斐',val:9},{label:'周琳',val:3},{label:'陆玉兰',val:3},{label:'王伟伟',val:2},{label:'康珂然',val:1}],{color:C.blue,barw:34}))+'</div>'
+        +   '<div style="flex:1;min-width:280px">'+card('预估浪费间夜 TOP10', vbar([{label:'王敏',val:9},{label:'李强',val:3},{label:'刘洋',val:3},{label:'张磊',val:2},{label:'杨帆',val:1}],{color:C.blue,barw:34}))+'</div>'
         + '</div>'
         + '<div class="sec-title mt">疑似酒店行程冲突异常订单明细</div>'
         + tableW(thead(['销售订单号','疑似异常场景','疑似异常原因','订单状态','预订人','入住人','是否拼房','关联行程单号','企业名称','所属部门'])
-            + trow(['2601021011423935331','酒店行程冲突','提前离店','已完成','姜元斐','姜元斐','未拼房','260102103348666238','四川示例企业','国内营销中心/央客一部'])
-            + trow(['2601151036016187303','酒店行程冲突','推迟入住','已完成','陆玉兰','陆玉兰','未拼房','260116195848639101','四川示例企业','总经办'])
-            + trow(['2602111416176657771','酒店行程冲突','推迟入住','已完成','姜元斐','姜元斐','未拼房','260211151724557263','四川示例企业','国内营销中心/央客一部']))
+            + trow(['2601021011423935331','酒店行程冲突','提前离店','已完成','王敏','王敏','未拼房','260102103348666238','四川示例企业','国内营销中心/央客一部'])
+            + trow(['2601151036016187303','酒店行程冲突','推迟入住','已完成','刘洋','刘洋','未拼房','260116195848639101','四川示例企业','总经办'])
+            + trow(['2602111416176657771','酒店行程冲突','推迟入住','已完成','王敏','王敏','未拼房','260211151724557263','四川示例企业','国内营销中心/央客一部']))
         + moreBar(12,3)
         + '<div class="row mt" style="margin-top:24px">'
         +   '<div style="flex:1;min-width:280px">'+card('同天入住多酒店间夜数', bigv('37')+subs(['订单总金额 <b>17,549.00元</b>']))
         +     '<div style="margin-top:12px">'+card('酒店-同天入住多酒店 TOP3 消费者', tableW(thead(['消费者姓名','员工编号','预订间夜数','订单总金额'])
-              + trow(['姜元斐','20160721222940752334','17','7,628.00元'])
-              + trow(['王伟伟','20200512192146904199','9','4,988.00元'])
-              + trow(['刘德龙','20260423093146093545','3','1,013.00元'])))+'</div></div>'
+              + trow(['王敏','20160721222940752334','17','7,628.00元'])
+              + trow(['张磊','20200512192146904199','9','4,988.00元'])
+              + trow(['陈静','20260423093146093545','3','1,013.00元'])))+'</div></div>'
         +   '<div style="flex:1;min-width:300px">'+card('场景说明', scene('同天入住多酒店',['员工预订酒店时，为同一入住人预订多酒店间夜，且预订间夜时间范围内同一天存在多个酒店订单，判断该订单未同天入住多酒店订单。']))+'</div>'
-        +   '<div style="flex:1;min-width:280px">'+card('同天入住多酒店 TOP10', vbar([{label:'姜元斐',val:17},{label:'王伟伟',val:9},{label:'刘德龙',val:3},{label:'周琳',val:3},{label:'马钊',val:3},{label:'杨祥吉',val:2}],{color:C.blue,barw:30}))+'</div>'
+        +   '<div style="flex:1;min-width:280px">'+card('同天入住多酒店 TOP10', vbar([{label:'王敏',val:17},{label:'张磊',val:9},{label:'陈静',val:3},{label:'李强',val:3},{label:'何勇',val:3},{label:'高翔',val:2}],{color:C.blue,barw:30}))+'</div>'
         + '</div>'
         + '<div class="row mt" style="margin-top:24px">'
         +   '<div style="flex:1;min-width:300px">'+card('超标订单预订间夜', bigv('13 间夜')+subs(['超标订单量 <b>9</b>','差标外企业支付金额 <b>0.00元</b>'])
-              + '<div class="sec-title mt">超标订单预订间夜 TOP10</div>'+vbar([{label:'杜金花',val:7},{label:'刘冰秀',val:2},{label:'刘颖',val:1},{label:'姜元斐',val:1},{label:'李姮',val:1},{label:'殷文成',val:1}],{color:C.blue,barw:28}))+'</div>'
+              + '<div class="jump-tag js-jump" data-line="hotel" data-from="超标情况(合规·酒店)" data-conds="订单类型::出票(ProductSubTypeName=1)~~超标订单::是(IsReasonCodeOrder=1)~~超标金额::&gt;0~~交易时间::2026年1月01日 — 2026年6月08日">↳ 下穿消费与节省明细（带超标条件）</div>'
+              + '<div class="sec-title mt">超标订单预订间夜 TOP10</div>'+vbar([{label:'林涛',val:7},{label:'罗霞',val:2},{label:'郑伟',val:1},{label:'王敏',val:1},{label:'梁静',val:1},{label:'谢峰',val:1}],{color:C.blue,barw:28}))+'</div>'
         +   '<div style="flex:1;min-width:300px">'+card('无申请单预订间夜', bigv('114 间夜')+subs(['无申请单预订间夜占比 <b>14.88%</b>','无申请单酒店消费金额 <b>145,201.85</b>'])
-              + '<div class="sec-title mt">无申请单预订间夜 TOP10</div>'+vbar([{label:'周琳',val:39},{label:'ZHOU',val:34},{label:'陆玉兰',val:15},{label:'姚震赢',val:6},{label:'刘旭',val:6},{label:'裴凌兰',val:5},{label:'戴培伯',val:5},{label:'杨祥吉',val:2},{label:'王雅琼',val:2}],{color:C.blue,barw:26}))+'</div>'
+              + '<div class="sec-title mt">无申请单预订间夜 TOP10</div>'+vbar([{label:'李强',val:39},{label:'宋娟',val:34},{label:'刘洋',val:15},{label:'唐明',val:6},{label:'许波',val:6},{label:'韩冰',val:5},{label:'冯阳',val:5},{label:'高翔',val:2},{label:'邓超',val:2}],{color:C.blue,barw:26}))+'</div>'
         + '</div>'
         + '<div class="sec-title mt">各组织酒店消费情况</div>'
         + dimTable(['公司','核算主体','成本中心'],[
@@ -1493,15 +2199,15 @@
         + '<div class="row">'
         +   '<div style="flex:1;min-width:300px">'+card('商务级坐席出票张数', bigv('7张')+subs(['商务级坐席出票占比 <b>1.97%</b>','商务级坐席出票金额 <b>10,369.00元</b>'])
               + '<div class="hint">注：商务级坐席包含"商务座、特等座、高级动卧、高级软卧"。</div>'
-              + '<div class="sec-title mt">商务级坐席出票张数 TOP10</div>'+vbar([{label:'王伟伟',val:6},{label:'姜元斐',val:1},{label:'刘佳佳',val:0},{label:'刘德龙',val:0},{label:'刘成伟',val:0},{label:'刘水秀',val:0}],{color:C.blue,barw:26}))+'</div>'
+              + '<div class="sec-title mt">商务级坐席出票张数 TOP10</div>'+vbar([{label:'张磊',val:6},{label:'王敏',val:1},{label:'曹颖',val:0},{label:'陈静',val:0},{label:'彭勇',val:0},{label:'曾敏',val:0}],{color:C.blue,barw:26}))+'</div>'
         +   '<div style="flex:1;min-width:300px">'+card('火车票退改张数', bigv('71张')+subs(['退改率 <b>16.67%</b>','火车票退改费 <b>643.50元</b>'])
-              + '<div class="sec-title mt">退改手续费 TOP10</div>'+vbar([{label:'杨震',val:198.5,disp:'198.50'},{label:'王长滋',val:93.5,disp:'93.50'},{label:'魏寻',val:80.5,disp:'80.50'},{label:'李祖',val:67.5,disp:'67.50'},{label:'杨靖伊',val:64,disp:'64.00'},{label:'陈新桥',val:36,disp:'36.00'},{label:'彭东川',val:27.5,disp:'27.50'},{label:'刘颖',val:21.5,disp:'21.50'},{label:'薛娜',val:20.5,disp:'20.50'},{label:'霍琦',val:12.5,disp:'12.50'}],{color:C.blue,barw:24}))+'</div>'
+              + '<div class="sec-title mt">退改手续费 TOP10</div>'+vbar([{label:'田甜',val:198.5,disp:'198.50'},{label:'董丽',val:93.5,disp:'93.50'},{label:'袁刚',val:80.5,disp:'80.50'},{label:'潘婷',val:67.5,disp:'67.50'},{label:'于飞',val:64,disp:'64.00'},{label:'蒋敏',val:36,disp:'36.00'},{label:'蔡勇',val:27.5,disp:'27.50'},{label:'郑伟',val:21.5,disp:'21.50'},{label:'余静',val:20.5,disp:'20.50'},{label:'杜鹏',val:12.5,disp:'12.50'}],{color:C.blue,barw:24}))+'</div>'
         + '</div>'
         + '<div class="row mt" style="margin-top:24px">'
         +   '<div style="flex:1;min-width:300px">'+card('超标订单出票张数', bigv('9张')+subs(['超标订单出票消费金额 <b>5,987.01</b>','差标外企业支付金额 <b>3,384.00元</b>'])
-              + '<div class="sec-title mt">超标订单出票张数 TOP10</div>'+vbar([{label:'王伟伟',val:4},{label:'刘颖',val:1},{label:'卢天震',val:1},{label:'朱浩',val:1},{label:'李开彬',val:1},{label:'李长滋',val:1}],{color:C.blue,barw:28}))+'</div>'
+              + '<div class="sec-title mt">超标订单出票张数 TOP10</div>'+vbar([{label:'张磊',val:4},{label:'郑伟',val:1},{label:'任倩',val:1},{label:'程磊',val:1},{label:'苏丽',val:1},{label:'卫强',val:1}],{color:C.blue,barw:28}))+'</div>'
         +   '<div style="flex:1;min-width:300px">'+card('无申请单出票张数', bigv('4张')+subs(['无申请单出票张数占比 <b>1.13%</b>','无申请单火车消费金额 <b>508</b>'])
-              + '<div class="sec-title mt">无申请单出票 TOP10</div>'+vbar([{label:'周琳',val:2},{label:'姚震赢',val:1},{label:'李开彬',val:1}],{color:C.blue,barw:34}))+'</div>'
+              + '<div class="sec-title mt">无申请单出票 TOP10</div>'+vbar([{label:'李强',val:2},{label:'唐明',val:1},{label:'苏丽',val:1}],{color:C.blue,barw:34}))+'</div>'
         + '</div>'
         + reqbox([ R1() ]);
     }},
@@ -1509,26 +2215,26 @@
       return '<div class="row">'
         +   '<div style="flex:1;min-width:280px">'+card('用车疑似异常订单量', bigv('97')+subs(['疑似异常订单支付金额 <b>4,359.32元</b>']))
         +     '<div style="margin-top:12px">'+card('疑似异常用车 TOP3 消费者', tableW(thead(['消费者姓名','员工编号','疑似异常订单量','支付金额'])
-              + trow(['古力匀','20230308123009041000','51','2,346.00元'])
-              + trow(['杨旭','20210111091730098126','16','435.79元'])
-              + trow(['周琳','20160615092159473114','9','431.68元'])))+'</div></div>'
+              + trow(['吕娜','20230308123009041000','51','2,346.00元'])
+              + trow(['丁勇','20210111091730098126','16','435.79元'])
+              + trow(['李强','20160615092159473114','9','431.68元'])))+'</div></div>'
         +   '<div style="flex:1;min-width:300px">'+card('场景说明', scene('用车疑似异常订单',['目前仅针对实时用车订单，在实时用车时通过消费者自身定位与上车地点数据通过模型进行判断。','<b>发单位置异常</b>：下单人所处位置与订单上车位置偏差 ≥10公里。','<b>发单城市异常</b>：下单人所处位置与上车位置非同一城市。']))+'</div>'
-        +   '<div style="flex:1;min-width:280px">'+card('疑似异常用车 TOP10', vbar([{label:'古力匀',val:51},{label:'杨旭',val:16},{label:'周琳',val:9},{label:'杨燕玉',val:4},{label:'王伟伟',val:3},{label:'何娜',val:1},{label:'刘佳佳',val:1},{label:'刘颖',val:1},{label:'叶冰倩',val:1},{label:'周串敏',val:1}],{color:C.blue,barw:24}))+'</div>'
+        +   '<div style="flex:1;min-width:280px">'+card('疑似异常用车 TOP10', vbar([{label:'吕娜',val:51},{label:'丁勇',val:16},{label:'李强',val:9},{label:'龚静',val:4},{label:'张磊',val:3},{label:'沈强',val:1},{label:'曹颖',val:1},{label:'郑伟',val:1},{label:'范涛',val:1},{label:'方敏',val:1}],{color:C.blue,barw:24}))+'</div>'
         + '</div>'
         + '<div class="row mt" style="margin-top:24px">'
         +   '<div style="flex:1;min-width:280px">'+card('总金额异常订单量', bigv('65')+subs(['总金额异常订单支付金额 <b>11,847.23元</b>']))
         +     '<div style="margin-top:12px">'+card('总金额异常订单 TOP3 消费者', tableW(thead(['消费者姓名','员工编号','总金额异常订单量','支付金额'])
-              + trow(['周琳','20160615092159473114','21','4,015.26元'])
-              + trow(['王伟伟','20200512192146904199','12','2,235.57元'])
-              + trow(['姜元斐','20160721222940752334','6','1,322.00元'])))+'</div></div>'
+              + trow(['李强','20160615092159473114','21','4,015.26元'])
+              + trow(['张磊','20200512192146904199','12','2,235.57元'])
+              + trow(['王敏','20160721222940752334','6','1,322.00元'])))+'</div></div>'
         +   '<div style="flex:1;min-width:300px">'+card('场景说明', scene('总金额异常订单',['订单存在预估价与实际支付车费（不含高速、路桥等附加费）偏差超过正常波动阈值，则标记为总金额异常订单。','<b>总金额异常订单</b>：当实际支付金额>100元，且实际支付车费与预估车费之间偏差率>20%。']))+'</div>'
-        +   '<div style="flex:1;min-width:280px">'+card('总金额异常订单量 TOP10', vbar([{label:'周琳',val:21},{label:'王伟伟',val:12},{label:'姜元斐',val:6},{label:'刘颖',val:5},{label:'杨婧伊',val:4},{label:'杨敬齐',val:3},{label:'晋超',val:2},{label:'卢尔生',val:1},{label:'吴朋明',val:1},{label:'崔琦',val:1}],{color:C.blue,barw:24}))+'</div>'
+        +   '<div style="flex:1;min-width:280px">'+card('总金额异常订单量 TOP10', vbar([{label:'李强',val:21},{label:'张磊',val:12},{label:'王敏',val:6},{label:'郑伟',val:5},{label:'石磊',val:4},{label:'姚伟',val:3},{label:'卢敏',val:2},{label:'钟强',val:1},{label:'汪磊',val:1},{label:'戴勇',val:1}],{color:C.blue,barw:24}))+'</div>'
         + '</div>'
         + '<div class="sec-title mt">用车疑似异常订单明细</div>'
         + tableW(thead(['销售订单号','交易完成时间','用车疑似异常场景类型','预订人','消费者姓名','员工编号','所属公司','上车地址'])
-            + trow(['2605131645441391033','2026-5-13','上车地址和乘客定位直线距离相差10km以上','周琳','周琳','20160615092159473114','四川示例企业','山东省威海市环翠区龙汇福邸西门'])
-            + trow(['2603061831388181013','2026-3-06','上车地址和乘客定位直线距离相差10km以上','王伟伟','王伟伟','20200512192146904199','四川示例企业','北京市朝阳区日坛国际贸易中心'])
-            + trow(['2605011241005511013','2026-5-01','上车地址和乘客定位直线距离相差10km以上','王伟伟','王伟伟','20200512192146904199','四川示例企业','北京市顺义区首都国际机场3号航站楼']))
+            + trow(['2605131645441391033','2026-5-13','上车地址和乘客定位直线距离相差10km以上','李强','李强','20160615092159473114','四川示例企业','山东省威海市环翠区龙汇福邸西门'])
+            + trow(['2603061831388181013','2026-3-06','上车地址和乘客定位直线距离相差10km以上','张磊','张磊','20200512192146904199','四川示例企业','北京市朝阳区日坛国际贸易中心'])
+            + trow(['2605011241005511013','2026-5-01','上车地址和乘客定位直线距离相差10km以上','张磊','张磊','20200512192146904199','四川示例企业','北京市顺义区首都国际机场3号航站楼']))
         + moreBar(97,10)
         + reqbox([ R1(),
             {t:'用车疑似异常订单统计（发单位置/城市异常）', id:'—', tag:'优化'} ]);
@@ -1556,19 +2262,19 @@
     'save-air': { crumb:'节约报告_机票', extraFilter: ssField('国内/国际',['全部','国内','仅国际'],''), render:function(){
       return '<div class="hint">更多差旅报告数据说明，可点击查看：<a style="color:#1e96f2">点击查看</a></div>'
         + '<div class="save-grid">'
-        + card('机票节省金额', bigv('12,620.81元')+subs(['SME共享节省 <b>12,620.81元</b>']))
+        + card('机票节省金额', bigv('12,620.81元')+subs(['SME共享节省 <b>12,620.81元</b>'])+'<div class="jump-tag js-jump" data-line="air" data-from="机票节省金额" data-conds="节省类型::全部~~交易时间::2026年1月01日 — 2026年6月08日">↳ 跳转消费与节省明细</div>')
         + card('对标票均节省', '<table class="tbl"><tr><th>对标类型</th><th>票均节省金额</th><th>票均节省率</th></tr><tr><td>贵司</td><td>2,240.53元</td><td>17.30%</td></tr><tr><td>商旅</td><td>121.21元</td><td>9.96%</td></tr></table>')
         + card('机票节省金额分布', donut([{pct:100,color:C.purple}],[{color:C.purple,label:'协议出票节省(100%)'}]))
         + '</div>'
         + '<div class="sec-title mt">机票节省趋势（机票节省率）</div>'
         + vbar([{label:'2026-1',val:9.81,disp:'9.81%'},{label:'2026-2',val:23.40,disp:'23.40%'},{label:'2026-3',val:31.34,disp:'31.34%'},{label:'2026-4',val:6.79,disp:'6.79%'},{label:'2026-5',val:7.81,disp:'7.81%'},{label:'2026-6',val:0,disp:'0.00%'}],{color:C.blue,unit:'%',barw:40})
         + '<div class="row mt" style="margin-top:30px">'
-        +   '<div style="flex:1;min-width:300px"><div class="sec-title">机票潜在节省金额 38,940元</div>'
+        +   '<div style="flex:1;min-width:300px"><div class="sec-title">机票潜在节省金额 38,940元 <span class="jump-tag js-jump" data-line="air" data-from="机票潜在节省金额" data-conds="潜在节省类型::全部~~交易时间::2026年1月01日 — 2026年6月08日">↳ 跳转消费与节省明细</span></div>'
         +     donut([{pct:95.96,color:C.blue},{pct:2.78,color:C.orange},{pct:1.26,color:C.purple}],[{color:C.blue,label:'机票改签(95.96%)'},{color:C.orange,label:'机票退票(2.78%)'},{color:C.purple,label:'机票超标订单支付(1.26%)'}])+'</div>'
-        +   '<div style="flex:1;min-width:340px"><div class="sec-title">潜在节省明细</div>'+tableW(thead(['潜在节省类型','潜在节省金额','占比','票均潜在节省'])
-              + trow(['机票改签','37,368.00元','95.96%','1,099.06元'])
-              + trow(['机票退票','1,082.00元','2.78%','154.57元'])
-              + trow(['机票超标订单支付','490.00元','1.26%','3.12元']))+'</div>'
+        +   '<div style="flex:1;min-width:340px"><div class="sec-title">潜在节省明细 <span class="opt-tag">点击行跳转消费与节省明细</span></div>'+tableW(thead(['潜在节省类型','潜在节省金额','占比','票均潜在节省'])
+              + drillRowSave('机票改签','air',34,['机票改签','37,368.00元','95.96%','1,099.06元'])
+              + drillRowSave('机票退票','air',7,['机票退票','1,082.00元','2.78%','154.57元'])
+              + drillRowSave('机票超标订单支付','air',157,['机票超标订单支付','490.00元','1.26%','3.12元']))+'</div>'
         + '</div>'
         + '<div class="sec-title mt">机票潜在节省趋势</div>'
         + vbar([{label:'2026-1',val:28757,disp:'28,757'},{label:'2026-2',val:3133,disp:'3,133'},{label:'2026-3',val:2249,disp:'2,249'},{label:'2026-4',val:1537,disp:'1,537'},{label:'2026-5',val:3264,disp:'3,264'},{label:'2026-6',val:0,disp:'0'}],{color:C.blue,unit:'元',barw:40})
@@ -1604,37 +2310,37 @@
         + '<div class="sec-title mt">机票节约明细（按笔） <span class="new-tag">需求3 新增</span> <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
         + '<div class="hint">支持按笔查看 / 导出，并可<b>下穿消费报表</b>核对原始订单；权限与报告数据权限一致。</div>'
         + tableW(thead(['订单号','出行人','出行时间','航线','原价','成交价','节约金额','节约来源'])
-            + trow(['2603150012345','王伟伟','2026-03-15','上海-北京','2,180.00','1,850.00','330.00','协议出票节省'])
-            + trow(['2603280045612','周琳','2026-03-28','成都-深圳','1,560.00','1,320.00','240.00','协议出票节省'])
-            + trow(['2604120078934','姜元斐','2026-04-12','北京-广州','2,640.00','2,210.00','430.00','差标管控节省'])
-            + trow(['2604250011267','陆玉兰','2026-04-25','上海-成都','1,980.00','1,690.00','290.00','协议出票节省'])
-            + trow(['2605080045390','刘德龙','2026-05-08','深圳-上海','2,420.00','2,090.00','330.00','协议出票节省']))
+            + trow(['2603150012345','张磊','2026-03-15','上海-北京','2,180.00','1,850.00','330.00','协议出票节省'])
+            + trow(['2603280045612','李强','2026-03-28','成都-深圳','1,560.00','1,320.00','240.00','协议出票节省'])
+            + trow(['2604120078934','王敏','2026-04-12','北京-广州','2,640.00','2,210.00','430.00','差标管控节省'])
+            + trow(['2604250011267','刘洋','2026-04-25','上海-成都','1,980.00','1,690.00','290.00','协议出票节省'])
+            + trow(['2605080045390','陈静','2026-05-08','深圳-上海','2,420.00','2,090.00','330.00','协议出票节省']))
         + moreBar(58,6)
         + compareSection('air')
         + reqbox([ R1(),
-            {t:'<b>需求3</b>：节约金额<b>按笔导出明细</b>（订单号/出行人/出行时间/航线/原价/成交价/节约金额/节约来源），可下穿消费报表 — ✅本页已落地', id:'2600525', tag:'新增'},
+            {t:'<b>需求3</b>：节约金额<b>按笔导出明细</b>（订单号/出行人/出行时间/航线/原价/成交价/节约金额/节约来源），<b>潜在节省明细行点击下穿</b>底部穿透表，可导出并下穿消费报表 — ✅本页已落地', id:'2600525', tag:'新增'},
             {t:'<b>国际机票多供应商比价</b>节省金额纳入报告', id:'2503145', tag:'新增'} ]);
     }},
 
     'save-hotel': { crumb:'节约报告_酒店', render:function(){
       return '<div class="save-grid">'
-        + card('酒店节省金额', bigv('20,142.10元')+subs(['酒店节省率 <b>9.35%</b>','全部酒店OTA节省 <b>18,753.10元</b>','差标节省金额 <b>24,258.00元</b>']))
+        + card('酒店节省金额', bigv('20,142.10元')+subs(['酒店节省率 <b>9.35%</b>','全部酒店OTA节省 <b>18,753.10元</b>','差标节省金额 <b>24,258.00元</b>'])+'<div class="jump-tag js-jump" data-line="hotel" data-from="酒店节省金额" data-conds="节省类型::全部~~交易时间::2026年1月01日 — 2026年6月08日">↳ 跳转消费与节省明细</div>')
         + card('对标间均节省', '<table class="tbl"><tr><th>对标类型</th><th>间均节省金额</th><th>间均节省率</th></tr><tr><td>贵司</td><td>26.85元</td><td>6.57%</td></tr><tr><td>商旅</td><td>35.79元</td><td>12.10%</td></tr></table>')
         + card('酒店节省金额分布', donut([{pct:65.67,color:C.orange},{pct:30.31,color:C.blue},{pct:4.02,color:C.teal}],[{color:C.orange,label:'OTA节省(65.67%)'},{color:C.blue,label:'集团协议节省(30.31%)'},{color:C.teal,label:'拼房节省(4.02%)'}]))
         + '</div>'
-        + '<div class="sec-title mt">酒店节省类型</div>'
+        + '<div class="sec-title mt">酒店节省类型 <span class="opt-tag">点击行跳转消费与节省明细</span></div>'
         + tableW(thead(['节省类型','酒店节省金额','节省金额占比','间均节省'])
-            + trow(['OTA节省','13,228.10元','65.67%','32.82元'])
-            + trow(['拼房节省','809.00元','4.02%','19.26元'])
-            + trow(['集团协议节省','6,105.00元','30.31%','47.33元']))
+            + jrow('hotel','酒店节省类型',[['节省类型','OTA节省']],['OTA节省','13,228.10元','65.67%','32.82元'])
+            + jrow('hotel','酒店节省类型',[['节省类型','拼房节省']],['拼房节省','809.00元','4.02%','19.26元'])
+            + jrow('hotel','酒店节省类型',[['节省类型','集团协议节省']],['集团协议节省','6,105.00元','30.31%','47.33元']))
         + '<div class="sec-title mt">酒店节省趋势（标准节省率）</div>'
         + vbar([{label:'2026-1',val:6.28,disp:'6.28%'},{label:'2026-2',val:7.20,disp:'7.20%'},{label:'2026-3',val:16.75,disp:'16.75%'},{label:'2026-4',val:14.38,disp:'14.38%'},{label:'2026-5',val:14.14,disp:'14.14%'},{label:'2026-6',val:3.54,disp:'3.54%'}],{color:C.blue,unit:'%',barw:40})
         + '<div class="row mt" style="margin-top:30px">'
-        +   '<div style="flex:1;min-width:300px"><div class="sec-title">酒店潜在节省金额 1,715.9元</div>'
+        +   '<div style="flex:1;min-width:300px"><div class="sec-title">酒店潜在节省金额 1,715.9元 <span class="jump-tag js-jump" data-line="hotel" data-from="酒店潜在节省金额" data-conds="潜在节省类型::全部~~交易时间::2026年1月01日 — 2026年6月08日">↳ 跳转消费与节省明细</span></div>'
         +     donut([{pct:90.86,color:C.blue},{pct:9.14,color:C.orange}],[{color:C.blue,label:'酒店超标订单支付(90.86%)'},{color:C.orange,label:'酒店取消(9.14%)'}])+'</div>'
-        +   '<div style="flex:1;min-width:340px"><div class="sec-title">酒店潜在节省明细</div>'+tableW(thead(['潜在节省类型','潜在节省金额','潜在节省占比','间均潜在节省'])
-              + trow(['酒店超标订单支付','1,559.00元','90.86%','48.72元'])
-              + trow(['酒店取消','156.90元','9.14%','2.27元']))+'</div>'
+        +   '<div style="flex:1;min-width:340px"><div class="sec-title">酒店潜在节省明细 <span class="opt-tag">点击行跳转消费与节省明细</span></div>'+tableW(thead(['潜在节省类型','潜在节省金额','潜在节省占比','间均潜在节省'])
+              + drillRowSave('酒店超标订单支付','hotel',32,['酒店超标订单支付','1,559.00元','90.86%','48.72元'])
+              + drillRowSave('酒店取消','hotel',69,['酒店取消','156.90元','9.14%','2.27元']))+'</div>'
         + '</div>'
         + '<div class="sec-title mt">酒店潜在节省趋势</div>'
         + vbar([{label:'2026-1',val:0,disp:'0.00'},{label:'2026-2',val:401.90,disp:'401.90'},{label:'2026-3',val:0,disp:'0.00'},{label:'2026-4',val:750,disp:'750.00'},{label:'2026-5',val:564,disp:'564.00'},{label:'2026-6',val:0,disp:'0.00'}],{color:C.blue,unit:'元',barw:40})
@@ -1661,17 +2367,17 @@
         + '<div class="sec-title mt">酒店节约明细（按笔） <span class="new-tag">需求3 新增</span> <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
         + '<div class="hint">支持按笔查看 / 导出，并可<b>下穿消费报表</b>核对原始订单；节约来源区分 OTA / 集团协议 / 拼房。</div>'
         + tableW(thead(['订单号','出行人','入住时间','酒店','原价','成交价','节约金额','节约来源'])
-            + trow(['HO2603120011','王伟伟','2026-03-12','全季(上海徐家汇)','420.00','360.00','60.00','OTA节省'])
-            + trow(['HO2603250023','周琳','2026-03-25','成都宽窄巷子城际','680.00','590.00','90.00','集团协议节省'])
-            + trow(['HO2604100045','姜元斐','2026-04-10','北京诺富特','560.00','485.00','75.00','OTA节省'])
-            + trow(['HO2604220067','陆玉兰','2026-04-22','上海静安诺富特','720.00','640.00','80.00','拼房节省'])
-            + trow(['HO2605050089','刘德龙','2026-05-05','深圳希尔顿','880.00','760.00','120.00','集团协议节省']))
+            + trow(['HO2603120011','张磊','2026-03-12','全季(上海徐家汇)','420.00','360.00','60.00','OTA节省'])
+            + trow(['HO2603250023','李强','2026-03-25','成都宽窄巷子城际','680.00','590.00','90.00','集团协议节省'])
+            + trow(['HO2604100045','王敏','2026-04-10','北京诺富特','560.00','485.00','75.00','OTA节省'])
+            + trow(['HO2604220067','刘洋','2026-04-22','上海静安诺富特','720.00','640.00','80.00','拼房节省'])
+            + trow(['HO2605050089','陈静','2026-05-05','深圳希尔顿','880.00','760.00','120.00','集团协议节省']))
         + moreBar(46,5)
         + compareSection('hotel')
         + reqbox([ R1(),
-            {t:'<b>需求3</b>：酒店节约金额<b>按笔导出明细</b>（含节约来源），可下穿消费报表 — ✅本页已落地', id:'2600525', tag:'新增'},
+            {t:'<b>需求3</b>：酒店节约金额<b>按笔导出明细</b>（含节约来源），<b>潜在节省明细行点击下穿</b>底部穿透表，可导出并下穿消费报表 — ✅本页已落地', id:'2600525', tag:'新增'},
             {t:'修复酒店节省金额计算（补全 OTA + 单体协议节省）', id:'2500307', tag:'已发布'},
-            {t:'<b>需求12②</b>（改）：取消报告内「会计/市场」双口径展示（对企业解释成本高）；改为<b>管理中心新增配置「差旅报告酒店节省类型」</b>——选「会计口径」按现状算；选「市场口径」再选会员类型（普通/白银/黄金…），由<b>酒店消费明细 + 基线表新增的分会员档节省字段</b>按配置灵活取数计算，报告只呈现最终节省金额', id:'2600698', tag:'调整'} ]);
+            {t:'<b>需求12②</b>（改）：取消报告内「会计/市场」双口径展示（对企业解释成本高）；改为<b>表单引擎·国内酒店 新增配置「差旅报告酒店节省类型」</b>——选「会计口径」按现状算；选「市场口径」再选会员类型（普通/白银/黄金…），由<b>酒店消费明细 + 基线表新增的分会员档节省字段</b>按配置灵活取数计算，报告只呈现最终节省金额', id:'2600698', tag:'调整'} ]);
     }},
 
     /* ---------- 需求20：服务商报告（新独立报告，分业务线，与其他报告一致） ---------- */
@@ -1860,11 +2566,11 @@
           ])
         + '<div class="sec-title mt">报销明细 <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
         + tableW(thead(['报销单号','出行人','部门','关联订单数','报销金额','状态','提交时间'])
-            + trow(['BX2605120012','王伟伟','国内营销中心/央客一部','3','4,860.00','已报销','2026-05-12'])
-            + trow(['BX2605150034','周琳','总经办','2','2,310.00','报销中','2026-05-15'])
-            + trow(['BX2605200056','姜元斐','国内营销中心/央客一部','5','7,920.00','未报销','2026-05-20'])
-            + trow(['BX2605250078','陆玉兰','客户成功中心','1','1,180.00','已报销','2026-05-25'])
-            + trow(['BX2606010090','刘德龙','采购部','4','5,640.00','报销中','2026-06-01']))
+            + trow(['BX2605120012','张磊','国内营销中心/央客一部','3','4,860.00','已报销','2026-05-12'])
+            + trow(['BX2605150034','李强','总经办','2','2,310.00','报销中','2026-05-15'])
+            + trow(['BX2605200056','王敏','国内营销中心/央客一部','5','7,920.00','未报销','2026-05-20'])
+            + trow(['BX2605250078','刘洋','客户成功中心','1','1,180.00','已报销','2026-05-25'])
+            + trow(['BX2606010090','陈静','采购部','4','5,640.00','报销中','2026-06-01']))
         + moreBar(1449,20)
         + reqbox([ {t:'<b>需求21</b>：结算报告 · 报销看板（未报销/报销中/已报销三态 + 状态分布 + 趋势 + 各组织 + 明细导出）；依赖结算/财务/报销系统数据接入 — ✅目标版式已落地', id:'—', tag:'新增'} ]);
     }},
@@ -1874,15 +2580,15 @@
         + '<div class="row mt" style="margin-top:20px">'
         +   '<div style="flex:1;min-width:320px">'+card('场景说明', scene('灰名单', ['员工<b>超期未报销 / 未还款</b>达到阈值（默认 ≥30 天 或 ≥3 笔），自动纳入灰名单。','灰名单人员可<b>限制下单</b>或进入观察名单，结清后自动移出。','支持按部门 / 核算主体下钻，导出明细。']))+'</div>'
         +   '<div style="flex:1;min-width:320px"><div class="sec-title">灰名单涉及金额 TOP10</div>'
-        +     vbar([{label:'张伟',val:28600,disp:'28,600'},{label:'李娜',val:22400,disp:'22,400'},{label:'王芳',val:18900,disp:'18,900'},{label:'刘强',val:16200,disp:'16,200'},{label:'陈明',val:14800,disp:'14,800'},{label:'杨洋',val:12300,disp:'12,300'},{label:'赵敏',val:10900,disp:'10,900'},{label:'周涛',val:9600,disp:'9,600'},{label:'吴静',val:8400,disp:'8,400'},{label:'孙磊',val:7200,disp:'7,200'}],{color:C.blue,barw:24})+'</div>'
+        +     vbar([{label:'段丽',val:28600,disp:'28,600'},{label:'吴刚',val:22400,disp:'22,400'},{label:'江波',val:18900,disp:'18,900'},{label:'夏敏',val:16200,disp:'16,200'},{label:'韦刚',val:14800,disp:'14,800'},{label:'贺强',val:12300,disp:'12,300'},{label:'龙静',val:10900,disp:'10,900'},{label:'武刚',val:9600,disp:'9,600'},{label:'易娜',val:8400,disp:'8,400'},{label:'常勇',val:7200,disp:'7,200'}],{color:C.blue,barw:24})+'</div>'
         + '</div>'
         + '<div class="sec-title mt">灰名单明细 <button class="export-btn">⤓ 导出明细(.xlsx)</button></div>'
         + tableW(thead(['姓名','工号','部门','灰名单原因','涉及金额','超期天数','状态'])
-            + trow(['张伟','2018****001','国内营销中心/央客一部','超期未报销','28,600元','62','限制下单'])
-            + trow(['李娜','2019****045','总经办','未还款 3 笔','22,400元','51','限制下单'])
-            + trow(['王芳','2020****078','客户成功中心','超期未报销','18,900元','45','观察'])
-            + trow(['刘强','2017****112','采购部','未还款','16,200元','38','观察'])
-            + trow(['陈明','2021****156','国内营销中心/央客一部','超期未报销','14,800元','33','观察']))
+            + trow(['段丽','2018****001','国内营销中心/央客一部','超期未报销','28,600元','62','限制下单'])
+            + trow(['吴刚','2019****045','总经办','未还款 3 笔','22,400元','51','限制下单'])
+            + trow(['江波','2020****078','客户成功中心','超期未报销','18,900元','45','观察'])
+            + trow(['夏敏','2017****112','采购部','未还款','16,200元','38','观察'])
+            + trow(['韦刚','2021****156','国内营销中心/央客一部','超期未报销','14,800元','33','观察']))
         + moreBar(23,3)
         + reqbox([ {t:'<b>需求21</b>：结算报告 · 灰名单（超期未报销/未还款监控 + TOP + 明细 + 限制下单状态）；依赖结算/报销系统数据接入 — ✅目标版式已落地', id:'—', tag:'新增'} ]);
     }},
@@ -1969,7 +2675,13 @@
         {type:'火车',orders:203,amt:'228.00',pct:'1.65%',yoy:'<span class="cj-up">+325,614%</span>'},
         {type:'用车',orders:24,amt:'43.57',pct:'0.32%',yoy:'-'},
         {type:'总体消费',orders:260,amt:'13,825.57',pct:'100.00%',yoy:'<span class="cj-up">+8.41%</span>'}],
-      saving:[{type:'机票',amt:'90.00元'},{type:'总体节省',amt:'90.00元'}] }); }}
+      saving:[{type:'机票',amt:'90.00元'},{type:'总体节省',amt:'90.00元'}] }); }},
+
+    /* ---------- 企业站 · 集采报告（周期 × 资源页签） ---------- */
+    'cje-month': { crumb:'集采报告_月报', render:function(){ return cjEnt('month', CJE_MONTH); } },
+    'cje-quarter': { crumb:'集采报告_季报', render:function(){ return cjEnt('quarter', CJE_QUARTER); } },
+    'cje-year': { crumb:'集采报告_年报', render:function(){ return cjEnt('year', CJE_YEAR); } },
+    'cje-optional': { crumb:'集采报告_可选月年报', render:function(){ return cjEnt('optional', CJE_OPTIONAL); } }
   };
 
   /* ---------- 侧边栏菜单 ---------- */
@@ -1979,12 +2691,16 @@
     {t:'消费报告',items:[['机票','con-air'],['酒店','con-hotel'],['火车票','con-train'],['用车','con-car']]},
     {t:'合规报告',items:[['机票','comp-air'],['酒店','comp-hotel'],['火车票','comp-train'],['用车','comp-car']]},
     {t:'节约报告',items:[['整体','save-all'],['机票','save-air'],['酒店','save-hotel']]},
+    {t:'对比报告',items:[['报告对比','cmp-all']]},
     {t:'服务商报告',items:[['整体','svc-all'],['机票','svc-air'],['酒店','svc-hotel'],['火车票','svc-train'],['用车','svc-car']]},
     /* 结算报告（需求21）暂时下线，先不展示；页面代码保留，恢复时取消本行注释即可 */
     /* {t:'结算报告',items:[['报销看板','set-reimburse'],['灰名单','set-graylist'],['回款情况','set-payback'],['未进账单','set-unbilled']]}, */
-    {t:'因私报告',items:[['因私出行','priv-all']]}
+    {t:'因私报告',items:[['因私出行','priv-all']]},
+    {t:'消费与节省明细',items:[['机票','detail-air'],['酒店','detail-hotel'],['火车票','detail-train'],['用车','detail-car']]}
   ];
   var CJ_GROUP={t:'集采报告',items:[['月报','cj-month'],['季报','cj-quarter'],['年报','cj-year'],['可选月年报','cj-optional']]};
+  var CJ_ENT={t:'集采报告',items:[['月报','cje-month'],['季报','cje-quarter'],['年报','cje-year'],['可选月年报','cje-optional']]};
+  var MENU_ENT=MENU.concat([CJ_ENT]);
   var SITE='ent';
   var NAV={ ent:['首页','我的差旅','订单管理','商旅资源集采','差旅报告','管理中心','表单引擎'], grp:['商旅资源集采','差旅报告','结算管理','我的差旅','管理中心','下载管理','表单引擎'] };
   var ACCT={ ent:'示例企业集团有限公司 ∨', grp:'国内机票事业部 ∨' };
@@ -2069,7 +2785,7 @@
   /* ---------- 渲染 ---------- */
   function renderSidebar(active){
     var box=document.getElementById('sidebar'); box.innerHTML='';
-    (SITE==='grp'?MENU.concat([CJ_GROUP]):MENU).forEach(function(g){
+    (SITE==='grp'?MENU.concat([CJ_GROUP]):MENU_ENT).forEach(function(g){
       var hasActive=g.items.some(function(it){return it[1]===active;});
       var open=(g.open!==false)||hasActive;
       var grp=document.createElement('div'); grp.className='grp'+(open?'':' collapsed');
@@ -2089,7 +2805,10 @@
   function go(id){
     var p=PAGES[id]; if(!p) return;
     document.getElementById('crumb').textContent=p.crumb;
-    document.getElementById('page-filters').innerHTML = p.extraFilter || '';
+    var _fb=document.getElementById('filterbar');
+    if(id.indexOf('cje-')===0){ _fb.innerHTML=cjEntFilter(id.replace('cje-','')); }
+    else if(id.indexOf('detail-')===0){ _fb.innerHTML=''; }
+    else { if(!document.getElementById('page-filters')){ _fb.innerHTML=filterBarHTML(); _fb.querySelectorAll('.ms-wrap').forEach(bindMultiselect); } document.getElementById('page-filters').innerHTML = p.extraFilter || ''; }
     document.getElementById('content').innerHTML=p.render();
     document.querySelectorAll('#page-filters .ss-wrap, #content .ss-wrap').forEach(bindSingle);
     bindCompare(document.getElementById('content'));
@@ -2097,7 +2816,11 @@
     bindDimTable(document.getElementById('content'));
     bindOvToggle(document.getElementById('content'));
     bindBarTip(document.getElementById('content'));
+    bindDonutTip(document.getElementById('content'));
     bindCarDrill(document.getElementById('content'));
+    bindCjTabs(document.getElementById('content'));
+    bindJump(document.getElementById('content'));
+    DETAIL_JUMP=null;
     renderSidebar(id);
   }
 
