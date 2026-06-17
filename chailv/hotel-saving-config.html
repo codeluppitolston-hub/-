@@ -142,17 +142,16 @@
           <!-- 会计口径说明 -->
           <div class="hint" id="acc-note">按 <b>协议价 / 官网原价</b> 对比计算节省金额（沿用现状逻辑），取数字段 <b>HotelSavingMoney</b>。</div>
 
-          <!-- 子字段：市场口径 → 先选酒店三级分类，再选会员类型 -->
+          <!-- 子字段：市场口径 → 先选节省类型，再选会员类型 -->
           <div class="subfield hidden" id="sub-market">
-            <!-- 酒店三级分类（多选）-->
-            <span class="sub-label"><span class="req" style="color:#f5222d">*</span>酒店三级分类 <span class="new-tag">需求12② 新增</span></span>
+            <!-- 节省类型（多选，与现有 HotelSavingTypeName 一致）-->
+            <span class="sub-label"><span class="req" style="color:#f5222d">*</span>节省类型 <span class="new-tag">需求12② 新增</span></span>
             <div class="chk-group" id="cat3Group">
-              <label class="chk checked" data-v="group"><input type="checkbox" checked>集团协议</label>
-              <label class="chk checked" data-v="single"><input type="checkbox" checked>单体协议</label>
-              <label class="chk checked" data-v="member"><input type="checkbox" checked>会员酒店</label>
-              <label class="chk checked" data-v="proxy"><input type="checkbox" checked>酒店代购</label>
+              <label class="chk checked" data-v="1"><input type="checkbox" checked>酒店集团协议节省</label>
+              <label class="chk checked" data-v="2"><input type="checkbox" checked>酒店单体协议节省</label>
+              <label class="chk checked" data-v="3"><input type="checkbox" checked>酒店OTA节省</label>
             </div>
-            <div class="hint">选择市场口径后，<b>先配置纳入市场口径节省统计的酒店三级分类</b>（可多选）：<b>集团协议 / 单体协议 / 会员酒店 / 酒店代购</b>。仅所选分类的订单参与市场口径节省金额计算。</div>
+            <div class="hint">选择市场口径后，<b>先配置纳入市场口径节省统计的节省类型</b>（可多选，与现有节省类型字段 <b>HotelSavingTypeName</b> 保持一致）：<b>1 酒店集团协议节省 / 2 酒店单体协议节省 / 3 酒店OTA节省</b>。仅所选类型的订单参与市场口径节省金额计算。</div>
 
             <div class="divider-sub"></div>
 
@@ -183,7 +182,7 @@
 
     <div class="reqbox">
       <h4>需求说明（需求12② · 问题ID 2600698 · 调整）</h4>
-      取消报告内「会计 / 市场」双口径并列展示（对企业解释成本高、易引发对账争议）。改为本配置页统一控制：选「会计口径」按现状算；选「市场口径」<b>先配置酒店三级分类</b>（集团协议 / 单体协议 / 会员酒店 / 酒店代购，<b>可多选</b>，仅所选分类订单参与市场口径节省统计），<b>再选会员类型</b>（普通 / 白银 / 黄金…）。酒店消费明细表、酒店差旅报告基线表按会员档新增 <code style="background:#eef4fb;color:#1e60b0;padding:1px 4px;border-radius:3px">HotelMarketSavingMoney_*</code> 字段，清洗期各档都算好落库，报告读本配置取对应字段、不实时算。
+      取消报告内「会计 / 市场」双口径并列展示（对企业解释成本高、易引发对账争议）。改为本配置页统一控制：选「会计口径」按现状算；选「市场口径」<b>先配置节省类型</b>（1 酒店集团协议节省 / 2 酒店单体协议节省 / 3 酒店OTA节省，<b>可多选</b>，<b>取值与现有 HotelSavingTypeName 字段一致</b>，仅所选类型订单参与市场口径节省统计），<b>再选会员类型</b>（普通 / 白银 / 黄金…）。酒店消费明细表、酒店差旅报告基线表按会员档新增 <code style="background:#eef4fb;color:#1e60b0;padding:1px 4px;border-radius:3px">HotelMarketSavingMoney_*</code> 字段，清洗期各档都算好落库，报告读本配置取对应字段、不实时算。
     </div>
   </div>
   </div>
@@ -195,7 +194,7 @@
   "use strict";
   var custType='group', caliber='acc';
   var memberLabel={Common:'普通会员',Silver:'白银会员',Gold:'黄金会员',Platinum:'铂金会员'};
-  var cat3Label={group:'集团协议',single:'单体协议',member:'会员酒店',proxy:'酒店代购'};
+  var cat3Label={'1':'酒店集团协议节省','2':'酒店单体协议节省','3':'酒店OTA节省'};
 
   function $(id){ return document.getElementById(id); }
 
@@ -253,7 +252,7 @@
       field='HotelMarketSavingMoney_'+m;
       var cats=getCat3().map(function(v){return cat3Label[v];});
       var catStr=cats.length ? cats.join(' / ') : '<span style="color:#f5222d">未选择（节省金额计为 0）</span>';
-      cat3Line='适用酒店三级分类：<b>'+catStr+'</b><br>';
+      cat3Line='适用节省类型：<b>'+catStr+'</b><br>';
     }
     $('previewBody').innerHTML =
       '生效范围：<b>'+who+'</b><br>'
