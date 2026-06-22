@@ -2130,6 +2130,10 @@
         + '</div>'
         + '<div class="sec-title mt">因私 · 月度使用情况 <span class="new-tag">新增</span></div>'
         + '<div class="hint">按月汇总因私出行的消费金额与使用次数（聚合口径，不下钻、不拆组织/个人）。</div>'
+        + tableW(thead(['月份','因私消费金额（元）','因私使用次数（次）'])
+            + trow(['2026-1','42,000','168']) + trow(['2026-2','38,000','152']) + trow(['2026-3','41,000','166'])
+            + trow(['2026-4','37,000','150']) + trow(['2026-5','39,000','158']) + trow(['2026-6','35,200','140'])
+            + trow(['合计','232,200','934'], true))
         + '<div class="row mt" style="margin-top:16px">'
         +   '<div style="flex:1;min-width:320px"><div class="sec-title">月度因私消费金额（元）</div>'
         +     vbar([{label:'2026-1',val:42000,disp:'42,000'},{label:'2026-2',val:38000,disp:'38,000'},{label:'2026-3',val:41000,disp:'41,000'},{label:'2026-4',val:37000,disp:'37,000'},{label:'2026-5',val:39000,disp:'39,000'},{label:'2026-6',val:35200,disp:'35,200'}],{color:C.blue,barw:36})+'</div>'
