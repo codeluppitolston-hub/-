@@ -135,7 +135,7 @@
       if(!str){ tip.style.display='none'; return; }
       var parts=str.split('||'), html='<div class="ct-title">'+parts[0]+'</div>';
       for(var i=1;i<parts.length;i++){
-        var st=''; if(parts[i].indexOf('同比')===0){ st=parts[i].indexOf('-')>-1?'color:#f5222d':'color:#52c41a'; }
+        var st=''; if(parts[i].indexOf('同比')>-1){ st=parts[i].indexOf('-')>-1?'color:#f5222d':'color:#52c41a'; }
         html+='<div class="ct-row" style="'+st+'">'+parts[i]+'</div>';
       }
       tip.innerHTML=html; tip.style.display='block';
@@ -1905,10 +1905,10 @@
         +   '<div class="dist-block"><div class="sec-title">用车车型消费分布 <span class="new-tag">需求4 新增</span></div>'
         +     donut([{pct:47.52,color:C.blue},{pct:46.5,color:C.orange},{pct:5.9,color:C.purple},{pct:0.08,color:C.teal}],
                   [{color:C.blue,label:'经济型(47.52%)'},{color:C.orange,label:'舒适型(46.5%)'},{color:C.purple,label:'商务型(5.9%)'},{color:C.teal,label:'豪华型(0.08%)'}],
-                  ['用车车型：经济型||用车消费金额：376,651元(47.52%)||用车均价：36.89元||用车产品数：10,210',
-                   '用车车型：舒适型||用车消费金额：368,566元(46.50%)||用车均价：37.08元||用车产品数：9,940',
-                   '用车车型：商务型||用车消费金额：46,764元(5.90%)||用车均价：36.88元||用车产品数：1,268',
-                   '用车车型：豪华型||用车消费金额：634元(0.08%)||用车均价：8.57元||用车产品数：74'])
+                  ['用车车型：经济型||用车消费金额：376,651元(47.52%)||交易金额同比：+21.3%||用车均价：36.89元||行程均价同比：+5.3%||用车产品数：10,210||订单数同比：+15.2%',
+                   '用车车型：舒适型||用车消费金额：368,566元(46.50%)||交易金额同比：+17.6%||用车均价：37.08元||行程均价同比：+4.6%||用车产品数：9,940||订单数同比：+12.4%',
+                   '用车车型：商务型||用车消费金额：46,764元(5.90%)||交易金额同比：+9.8%||用车均价：36.88元||行程均价同比：+3.5%||用车产品数：1,268||订单数同比：+6.1%',
+                   '用车车型：豪华型||用车消费金额：634元(0.08%)||交易金额同比：-42.0%||用车均价：8.57元||行程均价同比：-5.7%||用车产品数：74||订单数同比：-38.5%'])
         +   '</div>'
         + '</div>'
         + '<div class="sec-title mt">行程均价趋势</div>'
