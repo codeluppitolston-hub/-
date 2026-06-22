@@ -2118,10 +2118,10 @@
         +   '<div class="kpi"><div class="k">因私 · 订单/产品总数</div><div class="v">934</div><div style="margin-top:8px;font-size:12px;color:#909399">同比 '+yoy(9.1)+' &nbsp;·&nbsp; 环比 '+yoy(1.5)+'</div></div>'
         + '</div>'
         + '<div class="sec-title mt">分业务线因私明细（含同比 / 环比 <span class="new-tag">新增</span>）</div>'
-        + '<div class="hint">消费金额、使用人数、产品/订单数、均价 均含<b>同比</b>（绿涨红跌）；环比仅消费金额。口径同消费报告，仅做跨业务线汇总。</div>'
-        + tableW(thead(['业务线','因私消费金额','消费占比','同比','环比','使用人数（人次·同比）','产品/订单数（同比）','均价（同比）'])
-            + rows.map(function(r){return trow([r.n,r.amt,r.pct,yoy(r.yoy),yoy(r.mom),r.ppl+' '+yoy(r.pplY),r.prod+' '+yoy(r.prodY),r.avg+' '+yoy(r.avgY)]);}).join('')
-            + trow(['合计','232,200元','100%',yoy(11.8),yoy(0.8),'186 人次 '+yoy(6.8),'934 '+yoy(9.1),'—'], true))
+        + '<div class="hint">使用人数、产品/订单数、均价 各<b>单列展示同比</b>（独立列，绿涨红跌，不与数值挤在同一格）；消费金额含同比 / 环比。口径同消费报告，仅做跨业务线汇总。</div>'
+        + tableW(thead(['业务线','因私消费金额','消费占比','同比','环比','使用人数（人次）','同比','产品/订单数','同比','均价','同比'])
+            + rows.map(function(r){return trow([r.n,r.amt,r.pct,yoy(r.yoy),yoy(r.mom),r.ppl,yoy(r.pplY),r.prod,yoy(r.prodY),r.avg,yoy(r.avgY)]);}).join('')
+            + trow(['合计','232,200元','100%',yoy(11.8),yoy(0.8),'186 人次',yoy(6.8),'934',yoy(9.1),'—','—'], true))
         + '<div class="row mt" style="margin-top:30px">'
         +   '<div style="flex:1;min-width:320px"><div class="sec-title">因私消费金额（按业务线）</div>'
         +     vbar([{label:'酒店',val:124000,disp:'124,000'},{label:'机票',val:86000,disp:'86,000'},{label:'用车',val:12400,disp:'12,400'},{label:'火车票',val:9800,disp:'9,800'}],{color:C.blue,barw:48})+'</div>'
