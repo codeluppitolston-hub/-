@@ -2104,10 +2104,10 @@
     }},
     'priv-all': { crumb:'因私报告_因私出行', render:function(){
       var rows=[
-        {n:'机票',  amt:'86,000元',  pct:'37.0%', yoy:8.2,  mom:-3.5, ppl:'42', prod:'58 张',   avg:'1,483元'},
-        {n:'酒店',  amt:'124,000元', pct:'53.4%', yoy:15.4, mom:2.1,  ppl:'51', prod:'310 间夜', avg:'400元'},
-        {n:'火车票',amt:'9,800元',   pct:'4.2%',  yoy:-6.0, mom:-1.2, ppl:'33', prod:'46 张',   avg:'213元'},
-        {n:'用车',  amt:'12,400元',  pct:'5.3%',  yoy:11.0, mom:4.3,  ppl:'60', prod:'520 次',  avg:'23.8元'}
+        {n:'机票',  amt:'86,000元',  pct:'37.0%', yoy:8.2,  mom:-3.5, ppl:'42', pplY:5.0,  prod:'58 张',   prodY:6.2,  avg:'1,483元', avgY:1.9},
+        {n:'酒店',  amt:'124,000元', pct:'53.4%', yoy:15.4, mom:2.1,  ppl:'51', pplY:12.0, prod:'310 间夜', prodY:14.0, avg:'400元',   avgY:1.2},
+        {n:'火车票',amt:'9,800元',   pct:'4.2%',  yoy:-6.0, mom:-1.2, ppl:'33', pplY:-4.5, prod:'46 张',   prodY:-5.5, avg:'213元',   avgY:-0.5},
+        {n:'用车',  amt:'12,400元',  pct:'5.3%',  yoy:11.0, mom:4.3,  ppl:'60', pplY:9.0,  prod:'520 次',  prodY:10.5, avg:'23.8元',  avgY:0.5}
       ];
       return '<div class="callout danger">🔒 <b>因私报告</b>为消费者隐私数据专项报告：仅展示<b>聚合指标</b>，不可下钻、无组织/个人维度拆分、不提供明细导出。<b>整张报告可见性独立配置</b>（建议仅高管 / 合规角色可见），与各消费报告权限解耦——开通本报告即可见全部业务线因私聚合指标；不开通则各消费报告内均不再出现因私模块。</div>'
         + '<div class="sec-title mt">因私出行总览（全业务线汇总）</div>'
@@ -2118,20 +2118,29 @@
         +   '<div class="kpi"><div class="k">因私 · 订单/产品总数</div><div class="v">934</div><div style="margin-top:8px;font-size:12px;color:#909399">同比 '+yoy(9.1)+' &nbsp;·&nbsp; 环比 '+yoy(1.5)+'</div></div>'
         + '</div>'
         + '<div class="sec-title mt">分业务线因私明细（含同比 / 环比 <span class="new-tag">新增</span>）</div>'
-        + '<div class="hint">同比＝本期 vs 上年同期（消费金额）；环比＝本期 vs 上一周期。口径同消费报告，仅做跨业务线汇总。</div>'
-        + tableW(thead(['业务线','因私消费金额','消费占比','同比','环比','使用人数（人次）','产品/订单数','均价'])
-            + rows.map(function(r){return trow([r.n,r.amt,r.pct,yoy(r.yoy),yoy(r.mom),r.ppl,r.prod,r.avg]);}).join('')
-            + trow(['合计','232,200元','100%',yoy(11.8),yoy(0.8),'186 人次','934','—'], true))
+        + '<div class="hint">消费金额、使用人数、产品/订单数、均价 均含<b>同比</b>（绿涨红跌）；环比仅消费金额。口径同消费报告，仅做跨业务线汇总。</div>'
+        + tableW(thead(['业务线','因私消费金额','消费占比','同比','环比','使用人数（人次·同比）','产品/订单数（同比）','均价（同比）'])
+            + rows.map(function(r){return trow([r.n,r.amt,r.pct,yoy(r.yoy),yoy(r.mom),r.ppl+' '+yoy(r.pplY),r.prod+' '+yoy(r.prodY),r.avg+' '+yoy(r.avgY)]);}).join('')
+            + trow(['合计','232,200元','100%',yoy(11.8),yoy(0.8),'186 人次 '+yoy(6.8),'934 '+yoy(9.1),'—'], true))
         + '<div class="row mt" style="margin-top:30px">'
         +   '<div style="flex:1;min-width:320px"><div class="sec-title">因私消费金额（按业务线）</div>'
         +     vbar([{label:'酒店',val:124000,disp:'124,000'},{label:'机票',val:86000,disp:'86,000'},{label:'用车',val:12400,disp:'12,400'},{label:'火车票',val:9800,disp:'9,800'}],{color:C.blue,barw:48})+'</div>'
         +   '<div style="flex:1;min-width:320px"><div class="sec-title">因私消费占比</div>'
         +     donut([{pct:53.4,color:C.blue},{pct:37.0,color:C.orange},{pct:5.3,color:C.purple},{pct:4.3,color:C.teal}],[{color:C.blue,label:'酒店(53.4%)'},{color:C.orange,label:'机票(37.0%)'},{color:C.purple,label:'用车(5.3%)'},{color:C.teal,label:'火车票(4.2%)'}])+'</div>'
         + '</div>'
+        + '<div class="sec-title mt">因私 · 月度使用情况 <span class="new-tag">新增</span></div>'
+        + '<div class="hint">按月汇总因私出行的消费金额与使用次数（聚合口径，不下钻、不拆组织/个人）。</div>'
+        + '<div class="row mt" style="margin-top:16px">'
+        +   '<div style="flex:1;min-width:320px"><div class="sec-title">月度因私消费金额（元）</div>'
+        +     vbar([{label:'2026-1',val:42000,disp:'42,000'},{label:'2026-2',val:38000,disp:'38,000'},{label:'2026-3',val:41000,disp:'41,000'},{label:'2026-4',val:37000,disp:'37,000'},{label:'2026-5',val:39000,disp:'39,000'},{label:'2026-6',val:35200,disp:'35,200'}],{color:C.blue,barw:36})+'</div>'
+        +   '<div style="flex:1;min-width:320px"><div class="sec-title">月度因私使用次数（次）</div>'
+        +     vbar([{label:'2026-1',val:168,disp:'168'},{label:'2026-2',val:152,disp:'152'},{label:'2026-3',val:166,disp:'166'},{label:'2026-4',val:150,disp:'150'},{label:'2026-5',val:158,disp:'158'},{label:'2026-6',val:140,disp:'140'}],{color:C.teal,barw:36})+'</div>'
+        + '</div>'
         + '<div class="scene-note" style="margin-top:24px"><b>口径与权限说明：</b>「因私出行」指员工通过差旅平台预订、标记为<b>因私</b>的出行消费（如周末私人行程等）。该类数据属消费者个人隐私，原分散在各消费报告业务线区块中，现统一收口到本「因私报告」。<b>可见性按角色单独授权</b>，与消费报告解耦；指标口径与原消费报告一致，仅做跨业务线汇总，不新增下钻与明细。</div>'
         + reqbox([ R1(),
             {t:'<b>需求13</b>：因私出行从<b>各消费报告业务线迁出</b>，独立成「因私报告」（仅聚合指标 · 不可下钻 · 权限独立配置）— ✅本页已落地', id:'2502913', tag:'新增'},
             {t:'<b>需求18</b>：因私总览 KPI 与分业务线明细表增加<b>同比 / 环比</b>（口径同趋势表）— ✅本页已落地', id:'2502918', tag:'新增'},
+            {t:'分业务线明细表 <b>使用人数 / 产品订单数 / 均价</b> 三列各增<b>同比</b>；新增「<b>因私 · 月度使用情况</b>」（月度消费金额 + 使用次数）— ✅本页已落地', id:'2502919', tag:'新增'},
             {t:'因私报告可见性独立开关（建议默认仅高管/合规可见，与消费报告权限解耦）', id:'2502914', tag:'新增'} ]);
     }},
 
