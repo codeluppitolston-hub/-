@@ -2146,7 +2146,7 @@
             {t:'因私报告可见性独立开关（建议默认仅高管/合规可见，与消费报告权限解耦）', id:'2502914', tag:'新增'} ]);
     }},
 
-    'comp-air': { crumb:'合规报告_机票', render:function(){
+    'comp-air': { crumb:'合规报告_机票', extraFilter: ssField('国内/国际',['全部','国内','仅国际'],''), render:function(){
       return '<div class="pg-tabs"><span class="active">员工</span><span>成本中心</span><span>核算主体</span></div>'
         + '<div class="row">'
         +   '<div style="flex:1;min-width:280px">'+card('机票疑似退款至个人账户订单数(仅国内)', bigv('0')+subs(['订单总金额 <b>null</b>']))
